@@ -1,0 +1,31 @@
+# Environment
+.env
+.env.*
+!.env.example.*
+
+# Dependencies
+node_modules/
+
+# Logs
+*.log
+npm-debug.log*
+
+# Runtime data
+pids
+*.pid
+*.seed
+
+# IDE
+.vscode/
+.idea/
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Build
+/dist
+/build
+
+# Test coverage
+/coverage

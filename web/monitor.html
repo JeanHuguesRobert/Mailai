@@ -1,0 +1,54 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Mailai Monitor</title>
+    <style>
+        body { font-family: system-ui; max-width: 1200px; margin: 0 auto; padding: 20px; }
+        .logs { height: 400px; overflow-y: auto; background: #f5f5f5; padding: 10px; }
+        .log-entry { margin: 5px 0; padding: 5px; border-bottom: 1px solid #ddd; }
+        .config { width: 100%; height: 200px; font-family: monospace; }
+    </style>
+</head>
+<body>
+    <h1>Mailai Monitor</h1>
+    
+    <h2>Live Logs</h2>
+    <div class="logs" id="logs"></div>
+    
+    <h2>Configuration</h2>
+    <textarea class="config" id="config"></textarea>
+    <button onclick="saveConfig()">Save Configuration</button>
+
+    <script>
+        async function updateLogs() {
+            const logs = await fetch('/api/logs').then(r => r.json());
+            document.getElementById('logs').innerHTML = logs
+                .map(log => `<div class="log-entry">
+                    <strong>${new Date(log.timestamp).toLocaleString()}</strong>
+                    [${log.type}] ${log.message}
+                </div>`).join('');
+        }
+
+        async function loadConfig() {
+            const { config } = await fetch('/api/config').then(r => r.json());
+            document.getElementById('config').value = config;
+        }
+
+        async function saveConfig() {
+            const config = document.getElementById('config').value;
+            await fetch('/api/config', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ config })
+            });
+            alert('Configuration saved');
+        }
+
+        loadConfig();
+        updateLogs();
+        setInterval(updateLogs, 5000);
+    </script>
+</body>
+</html>

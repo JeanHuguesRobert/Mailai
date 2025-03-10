@@ -1,0 +1,15 @@
+{
+  "name": "Mailai",
+  "short_name": "Mailai",
+  "start_url": ".",
+  "display": "standalone",
+  "background_color": "#fff",
+  "description": "AI Email Assistant",
+  "icons": [
+    {
+      "src": "icons/icon-192x192.png",
+      "sizes": "192x192",
+      "type": "image/png"
+    }
+  ]
+}
