@@ -1,6 +1,6 @@
 # Mailai - AI Email Assistant
 
-Mailai is a personal automated service that uses artificial intelligence to respond to unread emails using OpenAI's GPT-3.5-turbo.
+Mailai is a personal automated service that uses artificial intelligence to respond to unread emails.
 
 ## 🚀 Features
 
@@ -11,84 +11,6 @@ Mailai is a personal automated service that uses artificial intelligence to resp
 - Secure IMAP connection handling
 - Bcc option for email responses (for human monitoring of AI responses)
 
-## 🤖 Supported AI Providers
-
-Mailai supports multiple AI providers through its plugin system:
-
-### Built-in Providers
-1. **OpenAI**
-   - GPT-3.5-turbo
-   - GPT-4
-   - Configuration: `MAILAI_OPENAI_API_KEY`
-
-2. **Mistral AI**
-   - Models: tiny, small, medium
-   - Configuration: `MAILAI_AI_API_KEY`
-
-### Plugin-based Providers
-3. **Anthropic Claude**
-   - Model: claude-3-opus
-   - Configuration: `MAILAI_CLAUDE_API_KEY`
-   - Plugin: claude-provider.js
-
-4. **Google PaLM**
-   - Model: text-bison-001
-   - Configuration: `MAILAI_PALM_API_KEY`
-   - Plugin: palm-provider.js
-
-5. **Meta's Llama 2**
-   - Model: llama-2-70b-chat
-   - Configuration: `MAILAI_LLAMA_API_KEY`
-   - Plugin: llama-provider.js
-
-6. **Cohere**
-   - Model: command
-   - Configuration: `MAILAI_COHERE_API_KEY`
-   - Plugin: cohere-provider.js
-
-7. **Google Gemini**
-   - Model: gemini-pro
-   - Configuration: `MAILAI_GEMINI_API_KEY`
-   - Plugin: gemini-provider.js
-
-8. **Azure OpenAI**
-   - Custom deployments
-   - Configuration:
-     ```env
-     MAILAI_AZURE_API_KEY=your-key
-     MAILAI_AZURE_ENDPOINT=your-endpoint
-     MAILAI_AZURE_DEPLOYMENT=your-deployment
-     ```
-   - Plugin: azure-openai-provider.js
-
-9. **Hugging Face**
-   - Default: Mixtral-8x7B-Instruct
-   - Configuration:
-     ```env
-     MAILAI_HUGGINGFACE_API_KEY=your-key
-     MAILAI_HUGGINGFACE_MODEL=your-model
-     ```
-   - Plugin: huggingface-provider.js
-
-### Using Different Providers
-
-1. Set the provider in your .env file:
-```env
-MAILAI_AI_PROVIDER=openai  # or: mistral, claude, palm, llama, cohere, gemini, azure, huggingface
-```
-
-2. Configure the appropriate API key:
-```env
-MAILAI_AI_API_KEY=your-api-key
-```
-
-3. Optional: Set model-specific configurations:
-```env
-MAILAI_AI_MODEL=your-model-name
-```
-
-### MCP Integration
-Additionally, Mailai supports any MCP-compatible service through the Model Context Protocol.
 
 ## 📋 Prerequisites
 
@@ -256,6 +178,86 @@ Configure the prompt location in your `.env` file:
 ```env
 MAILAI_PRE_PROMPT_URL=file://prompts/custom_prompt.txt
 ```
+
+
+## 🤖 Supported AI Providers
+
+Mailai supports multiple AI providers through its plugin system:
+
+### Built-in Providers
+1. **OpenAI**
+   - GPT-3.5-turbo
+   - GPT-4
+   - Configuration: `MAILAI_OPENAI_API_KEY`
+
+2. **Mistral AI**
+   - Models: tiny, small, medium
+   - Configuration: `MAILAI_AI_API_KEY`
+
+### Plugin-based Providers
+3. **Anthropic Claude**
+   - Model: claude-3-opus
+   - Configuration: `MAILAI_CLAUDE_API_KEY`
+   - Plugin: claude-provider.js
+
+4. **Google PaLM**
+   - Model: text-bison-001
+   - Configuration: `MAILAI_PALM_API_KEY`
+   - Plugin: palm-provider.js
+
+5. **Meta's Llama 2**
+   - Model: llama-2-70b-chat
+   - Configuration: `MAILAI_LLAMA_API_KEY`
+   - Plugin: llama-provider.js
+
+6. **Cohere**
+   - Model: command
+   - Configuration: `MAILAI_COHERE_API_KEY`
+   - Plugin: cohere-provider.js
+
+7. **Google Gemini**
+   - Model: gemini-pro
+   - Configuration: `MAILAI_GEMINI_API_KEY`
+   - Plugin: gemini-provider.js
+
+8. **Azure OpenAI**
+   - Custom deployments
+   - Configuration:
+     ```env
+     MAILAI_AZURE_API_KEY=your-key
+     MAILAI_AZURE_ENDPOINT=your-endpoint
+     MAILAI_AZURE_DEPLOYMENT=your-deployment
+     ```
+   - Plugin: azure-openai-provider.js
+
+9. **Hugging Face**
+   - Default: Mixtral-8x7B-Instruct
+   - Configuration:
+     ```env
+     MAILAI_HUGGINGFACE_API_KEY=your-key
+     MAILAI_HUGGINGFACE_MODEL=your-model
+     ```
+   - Plugin: huggingface-provider.js
+
+### Using Different Providers
+
+1. Set the provider in your .env file:
+```env
+MAILAI_AI_PROVIDER=openai  # or: mistral, claude, palm, llama, cohere, gemini, azure, huggingface
+```
+
+2. Configure the appropriate API key:
+```env
+MAILAI_AI_API_KEY=your-api-key
+```
+
+3. Optional: Set model-specific configurations:
+```env
+MAILAI_AI_MODEL=your-model-name
+```
+
+### MCP Integration
+Additionally, Mailai supports any MCP-compatible service through the Model Context Protocol.
 
 ## 🔧 Technologies Used
 
