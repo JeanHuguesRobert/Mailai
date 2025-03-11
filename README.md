@@ -5,8 +5,7 @@ Mailai is a personal automated service that uses artificial intelligence to resp
 ## 🚀 Features
 
 - Automatic monitoring of unread emails
-- Email processing with GPT-3.5-turbo
-- Customized automatic responses
+- Email processing with your favorite AI provider
 - Customizable pre-prompts support
 - Secure IMAP connection handling
 - Bcc option for email responses (for human monitoring of AI responses)
@@ -23,7 +22,7 @@ Mailai is a personal automated service that uses artificial intelligence to resp
 ### 1. Local Installation
 Best for personal use and testing:
 ```bash
-git clone https://github.com/yourusername/mailai
+git clone https://github.com/JeanHuguesRobert/mailai
 cd mailai
 npm install
 node index.js
@@ -31,7 +30,7 @@ node index.js
 
 ### 2. Browser-Based Version
 Access Mailai through any web browser:
-1. Visit https://yourusername.github.io/mailai
+1. Visit https://JeanHuguesRobert.github.io/mailai
 2. Configure your email settings
 3. Use directly from the browser
 
@@ -58,7 +57,7 @@ B. **Native Apps**
 For advanced users wanting full control:
 ```bash
 # Clone and setup
-git clone https://github.com/yourusername/mailai
+git clone https://github.com/JeanHuguesRobert/mailai
 cd mailai
 
 # Option A: Direct Node.js
@@ -81,7 +80,6 @@ docker-compose up -d
 2. **Local Installation**
    - Windows Task Scheduler
    - Cron jobs (Linux/Mac)
-   - Docker automatic restarts
 
 3. **Mobile**
    - PWA background sync
@@ -162,16 +160,9 @@ MAILAI_EMAIL_PORT=993
    - Enable IMAP
    - Save changes
 
-### Testing
-Send a test email to your agent's address with a simple question in the subject line. The agent will process unread emails and respond automatically.
 
 ## 📝 Response Template
-The response format can be customized by modifying the `templates/response.txt` file. 
-Use the `{response}` placeholder where you want the AI's response to appear.
 
-Configure the template location in your `.env` file:
-```env
-MAILAI_RESPONSE_TEMPLATE_URL=file://c:/tweesic/Mailai/templates/response.txt
 ```
 
 Configure the prompt location in your `.env` file:
@@ -192,33 +183,29 @@ Mailai supports multiple AI providers through its plugin system:
 
 2. **Mistral AI**
    - Models: tiny, small, medium
-   - Configuration: `MAILAI_AI_API_KEY`
+   - Configuration: `MAILAI_MISTRAL_API_KEY`
 
 ### Plugin-based Providers
 3. **Anthropic Claude**
    - Model: claude-3-opus
    - Configuration: `MAILAI_CLAUDE_API_KEY`
-   - Plugin: claude-provider.js
 
 4. **Google PaLM**
    - Model: text-bison-001
    - Configuration: `MAILAI_PALM_API_KEY`
-   - Plugin: palm-provider.js
+   - Plugin: palm-provider.j
 
 5. **Meta's Llama 2**
    - Model: llama-2-70b-chat
    - Configuration: `MAILAI_LLAMA_API_KEY`
-   - Plugin: llama-provider.js
 
 6. **Cohere**
    - Model: command
    - Configuration: `MAILAI_COHERE_API_KEY`
-   - Plugin: cohere-provider.js
 
 7. **Google Gemini**
    - Model: gemini-pro
    - Configuration: `MAILAI_GEMINI_API_KEY`
-   - Plugin: gemini-provider.js
 
 8. **Azure OpenAI**
    - Custom deployments
@@ -228,7 +215,6 @@ Mailai supports multiple AI providers through its plugin system:
      MAILAI_AZURE_ENDPOINT=your-endpoint
      MAILAI_AZURE_DEPLOYMENT=your-deployment
      ```
-   - Plugin: azure-openai-provider.js
 
 9. **Hugging Face**
    - Default: Mixtral-8x7B-Instruct
@@ -237,7 +223,6 @@ Mailai supports multiple AI providers through its plugin system:
      MAILAI_HUGGINGFACE_API_KEY=your-key
      MAILAI_HUGGINGFACE_MODEL=your-model
      ```
-   - Plugin: huggingface-provider.js
 
 ### Using Different Providers
 
@@ -266,13 +251,6 @@ Additionally, Mailai supports any MCP-compatible service through the Model Conte
 - IMAP
 - Nodemailer
 
-## 🚀 Getting Started
-
-To launch the application:
-
-```bash
-node index.js
-```
 
 ## 🛡️ Security
 
@@ -280,60 +258,10 @@ node index.js
 - Enable two-factor authentication for your email account
 - Use an application-specific password for your email provider
 
-## ⏰ Scheduling the Agent
-
-To make the agent autonomous and configure when it runs, you can set up a scheduled task or a cron job to run the script at specified intervals.
-
-### Using Task Scheduler on Windows
-
-1. **Open Task Scheduler**:
-   - Press `Win + R`, type `taskschd.msc`, and press `Enter`.
-
-2. **Create a Basic Task**:
-   - In the Task Scheduler window, click on `Create Basic Task` in the right-hand pane.
-   - Give your task a name and description, then click `Next`.
-
-3. **Set the Trigger**:
-   - Choose when you want the task to start (e.g., daily, weekly, etc.), then click `Next`.
-   - Set the start date and time, and specify the recurrence (e.g., every day), then click `Next`.
-
-4. **Set the Action**:
-   - Choose `Start a program`, then click `Next`.
-   - In the `Program/script` field, enter the path to your Node.js executable (e.g., `C:\Program Files\nodejs\node.exe`).
-   - In the `Add arguments (optional)` field, enter the path to your `index.js` file (e.g., `C:\tweesic\Mailai\index.js`).
-   - Click `Next`.
-
-5. **Finish the Task**:
-   - Review your settings, then click `Finish`.
-
-This will set up a scheduled task that runs your script at the specified intervals.
-
-### Using Cron on Linux
-
-1. **Open the Crontab File**:
-   - Open a terminal and type `crontab -e` to edit the crontab file.
-
-2. **Add a New Cron Job**:
-   - Add a new line to the crontab file with the following format:
-     ```
-     */10 * * * * /usr/bin/node /path/to/your/index.js
-     ```
-   - This example runs the script every 10 minutes. Adjust the schedule as needed.
-
-3. **Save and Exit**:
-   - Save the file and exit the editor. The cron job will now run the script at the specified intervals.
-
-This will set up a cron job that runs your script at the specified intervals.
-
-## ⚠️ Note
-
-Make sure to properly configure your email account's security settings to allow IMAP access.
-
 ## 📧 Bcc for Monitoring Multiple Email Addresses
 
 The Bcc (Blind Carbon Copy) option allows you to monitor the AI's email responses by sending a copy of each response to specified email addresses without the primary recipient knowing. This is useful for keeping track of the AI's interactions, especially when the agent is attached to multiple email accounts for different personas.
 
-For example, if you, Jean Hugues Robert (jeanhuguesrobert@gmail.com), want to monitor the AI responses sent from the agent's email (institutmariani@gmail.com), you can configure the Bcc option to send a copy of each response to your email address and any other monitoring addresses.
 
 ### Configuration
 
@@ -496,30 +424,6 @@ node index.js
    - Monitor emails in real-time
    - Respond directly from your browser
    - Configure multiple accounts
-
-## 🌐 GitHub Setup
-
-1. **Repository Setup**
-```bash
-git init
-git add .
-git commit -m "Initial commit"
-git branch -M main
-git remote add origin https://github.com/yourusername/mailai.git
-git push -u origin main
-```
-
-2. **GitHub Pages Configuration**
-   - Go to repository Settings > Pages
-   - Source: Deploy from a branch
-   - Branch: main/docs
-   - Folder: /web
-   - Save and wait for deployment
-
-3. **Environment Setup**
-   - Add repository secrets for CI/CD
-   - Configure GitHub Actions workflow
-   - Set up required environment variables
 
 ## 🖥️ Monitor Configuration
 
