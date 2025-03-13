@@ -10,3 +10,4 @@ All JavaScript modules must use CommonJS syntax:
 - Store environment variables in .env file
 - Use src/config.js as central configuration
 - Validate all environment variables on startup
+- Follow MAILAI_{persona}_* pattern for persona-specific variables

@@ -8,7 +8,7 @@ const Imap = require('imap');
 const nodemailer = require('nodemailer');
 
 const PluginManager = require('./plugins/manager');
-const parse_config = require( "./src/config");
+const parseConfig = require('./src/config');
 const EmailService = require('./src/services/email');
 const MonitoringService = require('./src/services/monitoring');
 const { log } = require('./src/utils/logger');
@@ -138,7 +138,7 @@ class MailAI {
       }
     };
     mailai = this;
-    log( "debug", "MailAI is ready");
+    log('debug', 'MailAI is ready');
   }
 }
 
@@ -146,7 +146,7 @@ async function startMailAI() {
   log( "debug", "Loading plugins");
   await mailai.pluginManager.loadPlugins();
   log( "debug", "loading config");
-  config = parse_config();
+  config = parseConfig();
   personas = config.personas;
   config.plugins = mailai.pluginManager.plugins;
   log( "debug", "Monitoring starting");
@@ -697,3 +697,5 @@ function start(){
 }
 
 start();
+
+module.exports = MailAI;

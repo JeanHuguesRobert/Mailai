@@ -2,6 +2,11 @@
 
 ## Core Components
 
+### Module System
+- CommonJS module pattern throughout codebase
+- Standard require/exports syntax
+- No ES6 module syntax allowed
+
 ### Email Processing Workflow
 - Entrypoint: src/index.js (main processing loop)
 - Key Functions:
@@ -26,6 +31,17 @@
 - Core Integration Points:
   - generateResponse() - AI response generation
   - sentimentAnalysis() - Email tone detection
+
+### Persona Configuration
+- Environment: .env file
+- Pattern: MAILAI_{persona}_* variables
+- Example:
+  ```env
+  MAILAI_PERSONA_institut=Institut Mariani
+  MAILAI_institut_EMAIL_USER=user@example.com
+  MAILAI_institut_EMAIL_PASSWORD=app_password
+  MAILAI_institut_PROMPT=custom_prompt.txt
+  ```
 
 ## Maintenance Guidelines
 1. This document must be updated:
