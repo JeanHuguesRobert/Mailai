@@ -1,10 +1,10 @@
 const { MailAIPlugin } = require('../base');
-const { ReplicateClient } = require('replicate');
+const Replicate = require('replicate');
 
 class LlamaProviderPlugin extends MailAIPlugin {
   constructor(config) {
     super(config);
-    this.replicate = new ReplicateClient({
+    this.replicate = new Replicate({
       auth: process.env.MAILAI_LLAMA_API_KEY,
     });
   }
