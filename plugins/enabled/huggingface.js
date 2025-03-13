@@ -1,7 +1,7 @@
-const { MailAIPlugin } = require('../base');
-const { HfInference } = require('@huggingface/inference');
+import { MailAIPlugin } from '../base.js';
+import { HfInference } from '@huggingface/inference';
 
-class HuggingFaceProviderPlugin extends MailAIPlugin {
+class HuggingFacePlugin extends MailAIPlugin {
   constructor(config) {
     super(config);
     this.hf = new HfInference(process.env.MAILAI_HUGGINGFACE_API_KEY);
@@ -24,4 +24,4 @@ class HuggingFaceProviderPlugin extends MailAIPlugin {
   }
 }
 
-module.exports = HuggingFaceProviderPlugin;
+export default HuggingFacePlugin;

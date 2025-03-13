@@ -1,7 +1,7 @@
-const { MailAIPlugin } = require('../base');
-const Replicate = require('replicate');
+import { MailAIPlugin } from '../base.js';
+import Replicate from 'replicate';
 
-class LlamaProviderPlugin extends MailAIPlugin {
+class LlamaPlugin extends MailAIPlugin {
   constructor(config) {
     super(config);
     this.replicate = new Replicate({
@@ -27,4 +27,4 @@ class LlamaProviderPlugin extends MailAIPlugin {
   }
 }
 
-module.exports = LlamaProviderPlugin;
+export default LlamaPlugin;

@@ -1,8 +1,8 @@
-const { MailAIPlugin } = require('../base');
-const { TextServiceClient } = require('@google-ai/generativelanguage').v1beta2;
-const { GoogleAuth } = require('google-auth-library');
+import { MailAIPlugin } from '../base.js';
+import { TextServiceClient } from '@google-ai/generativelanguage';
+import { GoogleAuth } from 'google-auth-library';
 
-class PaLMProviderPlugin extends MailAIPlugin {
+class PaLMPlugin extends MailAIPlugin {
   constructor(config) {
     super(config);
     this.client = new TextServiceClient({
@@ -23,4 +23,4 @@ class PaLMProviderPlugin extends MailAIPlugin {
   }
 }
 
-module.exports = PaLMProviderPlugin;
+export default PaLMPlugin;

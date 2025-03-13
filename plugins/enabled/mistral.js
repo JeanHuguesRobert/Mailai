@@ -1,6 +1,6 @@
-const { MailAIPlugin } = require('../base');
+import { MailAIPlugin } from '../base.js';
 
-class MistralProviderPlugin extends MailAIPlugin {
+class MistralPlugin extends MailAIPlugin {
   constructor(config) {
     super(config);
     this.apiKey = process.env.MAILAI_AI_API_KEY;
@@ -30,4 +30,4 @@ class MistralProviderPlugin extends MailAIPlugin {
   }
 }
 
-module.exports = MistralProviderPlugin;
+export default MistralPlugin;

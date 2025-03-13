@@ -1,7 +1,7 @@
-const { MailAIPlugin } = require('../base');
-const { OpenAI } = require('openai');
+import { MailAIPlugin } from '../base.js';
+import { OpenAI } from 'openai';
 
-class OpenAIProviderPlugin extends MailAIPlugin {
+class OpenAIPlugin extends MailAIPlugin {
   constructor(config) {
     super(config);
     this.openai = new OpenAI({
@@ -25,4 +25,4 @@ class OpenAIProviderPlugin extends MailAIPlugin {
   }
 }
 
-module.exports = OpenAIProviderPlugin;
+export default OpenAIPlugin;

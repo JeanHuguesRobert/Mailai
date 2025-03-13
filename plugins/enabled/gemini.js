@@ -1,7 +1,7 @@
-const { MailAIPlugin } = require('../base');
-const { GoogleGenerativeAI } = require('@google/generative-ai');
+import { MailAIPlugin } from '../base.js';
+import { GoogleGenerativeAI } from '@google/generative-ai';
 
-class GeminiProviderPlugin extends MailAIPlugin {
+class GeminiPlugin extends MailAIPlugin {
   constructor(config) {
     super(config);
     this.gemini = new GoogleGenerativeAI(process.env.MAILAI_GEMINI_API_KEY);
@@ -17,4 +17,4 @@ class GeminiProviderPlugin extends MailAIPlugin {
   }
 }
 
-module.exports = GeminiProviderPlugin;
+export default GeminiPlugin;

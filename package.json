@@ -3,6 +3,7 @@
   "version": "1.0.0",
   "description": "Mailai - AI Email Assistant",
   "main": "index.js",
+  "type": "module",
   "scripts": {
     "start": "set NODE_ENV=production && node index.js",
     "dev": "node index.js",
@@ -21,7 +22,6 @@
   ],
   "author": "Jean Hugues Noël Robert",
   "license": "MIT",
-  "type": "commonjs",
   "dependencies": {
     "@anthropic-ai/sdk": "^0.10.0",
     "@azure/identity": "^4.7.0",
@@ -30,10 +30,12 @@
     "@google/generative-ai": "^0.1.3",
     "@huggingface/inference": "^2.6.4",
     "@modelcontextprotocol/sdk": "^1.0.0",
+    "chalk": "^5.4.1",
     "dotenv": "^16.4.7",
     "express": "^4.18.2",
     "google-auth-library": "^9.0.0",
     "imap": "^0.8.19",
+    "minimist": "^1.2.8",
     "nodemailer": "^6.7.2",
     "openai": "^4.28.0",
     "replicate": "^1.0.1"

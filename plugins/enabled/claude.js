@@ -1,7 +1,7 @@
-const { MailAIPlugin } = require('../base');
-const { Anthropic } = require('@anthropic-ai/sdk');
+import { MailAIPlugin } from '../base.js';
+import { Anthropic } from '@anthropic-ai/sdk';
 
-class ClaudeProviderPlugin extends MailAIPlugin {
+class ClaudePlugin extends MailAIPlugin {
   constructor(config) {
     super(config);
     this.claude = new Anthropic({
@@ -10,7 +10,6 @@ class ClaudeProviderPlugin extends MailAIPlugin {
   }
 
   async beforeProcessEmail(emailData) {
-    if (process.env.MAILAI_AI_PROVIDER !== 'claude') return emailData;
 
     const completion = await this.claude.messages.create({
       model: 'claude-3-opus-20240229',
@@ -26,4 +25,4 @@ class ClaudeProviderPlugin extends MailAIPlugin {
   }
 }
 
-module.exports = ClaudeProviderPlugin;
+export default ClaudePlugin;

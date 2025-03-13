@@ -1,7 +1,7 @@
-const { MailAIPlugin } = require('../base');
-const { CohereClient } = require('cohere-ai');
+import { MailAIPlugin } from '../base.js';
+import { CohereClient } from 'cohere-ai';
 
-class CohereProviderPlugin extends MailAIPlugin {
+class CoherePlugin extends MailAIPlugin {
   constructor(config) {
     super(config);
     this.cohere = new CohereClient({
@@ -23,4 +23,4 @@ class CohereProviderPlugin extends MailAIPlugin {
   }
 }
 
-module.exports = CohereProviderPlugin;
+export default CoherePlugin;

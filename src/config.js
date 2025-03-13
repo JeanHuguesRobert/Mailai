@@ -2,158 +2,126 @@
  *    Process .env configuration
  */
 
-
-const { pluginManager } = require('../plugins/manager');
+import PluginManager from '../plugins/manager.js';
+import fs from 'fs';
+import PluginManagerath from 'path';
 
 // Collect AI config for a persona
 function getAIConfig(persona) {
+  console.log( "Getting config for persona", persona);
   const prefix = `MAILAI_${persona}_`;
   const config = {};
+
+  // First check for AI provider selection
+  let ai_provider = process.env[`${prefix}ai`];
   
+  // If no provider specified, use default
+  if (!ai_provider) {
+    ai_provider = 'unavailable';
+  }
+
+  // Validate provider name is lowercase
+  if (ai_provider !== ai_provider.toLowerCase()) {
+    throw new Error(`AI provider name '${ai_provider}' must be lowercase in '${prefix}ai'. Example: '${ai_provider.toLowerCase()}'`);
+  }
+
+  // Check for optional prompt
+  const prompt = process.env[`${prefix}prompt`];
+  if (prompt) {
+    config.prompt = prompt;
+  }else{
+    config.prompt = '';
+  }
+
+  // If provider is 'unavailable', check for custom message
+  if (ai_provider === 'unavailable') {
+    const message = process.env[`${prefix}unavailable_message`] || 'Service unavailable';
+    config.message = message;
+  }
+
+  // Get provider-specific settings
+  const providerPrefix = `${prefix}${ai_provider}_`;
   for (const [key, value] of Object.entries(process.env)) {
-    if (key.startsWith(prefix)) {
-      const attribute = key.slice(prefix.length).toLowerCase();
-      config[attribute] = value;
+    if (key.startsWith(providerPrefix)) {
+      const param = key.slice(providerPrefix.length);
+      // Validate parameter name is lowercase
+      if (param !== param.toLowerCase()) {
+        throw new Error(`AI parameter '${param}' must be lowercase in '${key}'. Example: '${key.replace(param, param.toLowerCase())}'`);
+      }
+      config[param] = value;
+    // Else collect persona settings
+    }else if( key.startsWith(prefix) ){
+      const param = key.slice(prefix.length);
+      config[param] = value;
     }
   }
 
-  if (!config.provider) {
-    throw new Error(`Missing provider for persona: ${persona}`);
-  }
-
-  // Validate provider
-  const enabledProviders = pluginManager.plugins.map(p => p.provider);
-  if (!enabledProviders.includes(config.provider)) {
-    throw new Error(`Invalid provider '${config.provider}' for persona: ${persona}. Available providers: ${enabledProviders.join(', ')}`);
-  }
-
-  // Validate temperature
-  if (config.temperature) {
-    const temp = parseFloat(config.temperature);
-    if (isNaN(temp) || temp < 0 || temp > 1) {
-      throw new Error(`Invalid temperature value '${config.temperature}' for ${persona}`);
-    }
-    config.temperature = temp;
-  }
-
-  // Validate maxTokens
-  if (config.maxTokens) {
-    const tokens = parseInt(config.maxTokens);
-    if (isNaN(tokens) || tokens <= 0) {
-      throw new Error(`Invalid maxTokens value '${config.maxTokens}' for ${persona}`);
-    }
-    config.maxTokens = tokens;
-  }
-
-  // Validate API key if required
-  if (config.apiKey && typeof config.apiKey !== 'string') {
-    throw new Error(`Invalid API key format for ${persona}`);
-  }
-
-  // Validate model name
-  if (config.model && typeof config.model !== 'string') {
-    throw new Error(`Invalid model format for ${persona}`);
-  }
+  // Add provider to config
+  config.ai = ai_provider;
 
   return config;
 }
 
-// Build object based on some of the environnment variables
-//  MAILAI_MAX_EMAILS_PER_DAY=10
-//  MAILAI_MAX_EMAIL_PER_BATCH=50
-//  MAILAI_MIN_DAYS=0
-//  MAILAI_MAX_DAYS=30
-//  MAILAI_BATCH_SIZE=10
-//  MAILAI_COOLDOWN_PERIOD=5
-//  MAILAI_PORT=8080
-//  MAILAI_MODE=debug
-// Plus per persona variables
-//  MAILAI_<PERSONA_NAME>_EMAIL_USER=
-//  MAILAI_<PERSONA_NAME>_EMAIL_PASSWORD=
-//  MAILAI_<PERSONA_NAME>_EMAIL_HOST=
-//  MAILAI_<PERSONA_NAME>_EMAIL_PORT=
-//  MAILAI_<PERSONA_NAME>_PROMPT=
-//  MAILAI_<PERSONA_NAME>_PROVIDER=
-// Plus per AI provider per persona
-//  MAILAI_<PERSONA_NAME>_<AI_PROVIDER>_API_KEY=
-//  MAILAI_<PERSONA_NAME>_<AI_PROVIDER>_MODEL=
-//  MAILAI_<PERSONA_NAME>_<AI_PROVIDER>_TEMPERATURE=
-//  MAILAI_<PERSONA_NAME>_<AI_PROVIDER>_MAX_TOKENS=
-//  and any other AI provider specific parameters
-function parse_config(){
-    
-    const config = {
-        port: parseInt(process.env.MAILAI_PORT) || 8080,
-        mode: process.env.MAILAI_MODE || 'debug',
-        batch_size: parseInt(process.env.MAILAI_BATCH_SIZE) || 10,
-        max_emails_per_batch: parseInt(process.env.MAILAI_MAX_EMAILS_PER_BATCH) || 50,
-        cooldown_period: parseInt(process.env.MAILAI_COOLDOWN_PERIOD) || 5,
-        max_emails_per_day: parseInt(process.env.MAILAI_MAX_EMAILS_PER_DAY) || 10,
-        min_days: parseInt(process.env.MAILAI_MIN_DAYS) || 0,
-        max_days: parseInt(process.env.MAILAI_MAX_DAYS) || 7,
-        personas: {}
-    }
+function validateMode(mode) {
+  const validModes = ['development', 'production', 'testing', 'dry_run'];
+  const inputMode = mode?.toLowerCase();
   
-    if (config.min_days < 0 || config.max_days < 0) {
-        throw new Error('MAILAI_MIN/MAX_DAYS must be positive integers');
-    }
-    if (config.min_days > config.max_days) {
-        throw new Error('MAILAI_MIN_DAYS cannot exceed MAILAI_MAX_DAYS');
-    }
+  if (!validModes.includes(inputMode)) {
+    throw new Error(`Invalid mode '${mode}'. Must be one of: ${validModes.join(', ')}`);
+  }
   
-    const personas = {};
-    const prefix = 'MAILAI_PERSONA_';
-    
-    for (const [key, value] of Object.entries(process.env)) {
-
-        if (key.startsWith(prefix)) {
-            const [personaName, param] = key.replace(prefix, '').split('_');
-            if (!personas[personaName]) {
-              personas[personaName] = { id: personaName, name: value };
-            }
-            if( param ){
-              personas[personaName][param.toLowerCase()] = value;
-            }
-        }
-    }
-      
-    // Validate personas
-    for (const [name, config] of Object.entries(personas)) {
-        const required = ['email_user', 'email_password', 'email_host', 'email_port', 'prompt', 'ai', 'strategy', 'marking_strategy'];
-        required.forEach(param => {
-            if (!config[param]) {
-              throw new Error(`Missing ${param} for persona ${name}`);
-            }
-            if (param === 'marking' && !['seen', 'flag'].includes(config[param])) {
-                throw new Error(`Invalid MARKING '${config[param]}' for persona ${name}. Valid values: seen or flag`);
-            }
-        });
-        // Collect potential other per persona variables based on name
-        const persona_config = {};
-        for( const [var_name, value] of Object.entries(process.env)) {
-            if (var_name.startsWith(`MAILAI_${name}_`)) {
-            const var_name = var_name.replace(`MAILAI_${name}_`, '');
-            persona_config[var_name] = value;
-            }
-        }
-
-        // Get AI provider of personna
-        persona_config.ai = getAIConfig( name );
-
-        // Add to config in personas sub object
-        personas[name].config = persona_config;
-    }
+  if (mode !== inputMode) {
+    throw new Error(`Mode '${mode}' must be lowercase. Use: '${inputMode}'`);
+  }
   
-    config.personas = personas;
+  return inputMode;
+}
 
-    const BASE_PROMPT = `You are an AI email assistant handling multiple personas. Your role is to:
-    1. Identify the appropriate persona based on email content
-    2. Maintain consistent voice per persona
-    3. Handle persona-specific authentication
-    4. Route responses through correct AI provider`;
-    
-    config['base_prompt'] = BASE_PROMPT;
-    return config;
+function populateConfig() {
+  const config = {
+    port: parseInt(process.env.MAILAI_PORT) || 8080,
+    mode: validateMode(process.env.MAILAI_MODE || 'development'),
+    batch_size: parseInt(process.env.MAILAI_BATCH_SIZE) || 10,
+    max_emails_per_batch: parseInt(process.env.MAILAI_MAX_EMAILS_PER_BATCH) || 50,
+    cooldown_period: parseInt(process.env.MAILAI_COOLDOWN_PERIOD) || 5,
+    max_emails_per_day: parseInt(process.env.MAILAI_MAX_EMAILS_PER_DAY) || 10,
+    min_days: parseInt(process.env.MAILAI_MIN_DAYS) || 0,
+    max_days: parseInt(process.env.MAILAI_MAX_DAYS) || 7,
+    personas: {}
+  };
+
+  // Validate core settings
+  if (config.min_days < 0 || config.max_days < 0) {
+    throw new Error('MAILAI_MIN_DAYS and MAILAI_MAX_DAYS must be positive integers');
+  }
+  if (config.min_days > config.max_days) {
+    throw new Error('MAILAI_MIN_DAYS cannot exceed MAILAI_MAX_DAYS');
   }
 
-  module.exports = parse_config;
+  // First pass: Get persona names
+  const personas = {};
+  let seen = false;
+  for (const [key, value] of Object.entries(process.env)) {
+    if (key.toLowerCase().startsWith('mailai_persona_')) {
+      const personaName = key.split('_')[2];
+      personas[personaName] = getAIConfig(personaName);
+      personas[personaName].id = personaName;
+      seen = true;
+    }
+  }
+  
+  config.personas = personas;
+
+  console.log('Loaded personas:', personas);
+
+  console.log( "Loaded config", config);
+
+  // Throw error if no personas found
+  if (!seen) {
+    throw new Error('No personas found in configuration');
+  } 
+
+  return config;
+}
+
+export default populateConfig;

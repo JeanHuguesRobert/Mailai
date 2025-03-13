@@ -9,4 +9,4 @@ class MailAIPlugin {
   async onError(error, context) { }
 }
 
-module.exports = { MailAIPlugin };
+export { MailAIPlugin };

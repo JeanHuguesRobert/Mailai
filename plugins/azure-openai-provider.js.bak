@@ -1,8 +1,8 @@
-// const { MailAIPlugin } = require('../base');
-// const { OpenAIClient } = require('@azure/openai');
-// const { AzureKeyCredential } = require('@azure/core-auth');
+// import { MailAIPlugin } from '../base.js';
+// import { OpenAIClient } from '@azure/openai';
+// import { AzureKeyCredential } from '@azure/core-auth';
 
-// class AzureOpenAIProviderPlugin extends MailAIPlugin {
+// class AzureOpenAIPlugin extends MailAIPlugin {
 //   constructor(config) {
 //     super(config);
 //     this.client = new OpenAIClient(
@@ -24,4 +24,4 @@
 //   }
 // }
 
-// module.exports = AzureOpenAIProviderPlugin;
+// export default AzureOpenAIPlugin;

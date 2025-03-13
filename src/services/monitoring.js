@@ -1,3 +1,5 @@
+import fs from 'fs';
+
 class MonitoringService {
   constructor() {
     this.stats = {
@@ -53,4 +55,4 @@ class MonitoringService {
   }
 }
 
-module.exports = MonitoringService;
+export default MonitoringService;

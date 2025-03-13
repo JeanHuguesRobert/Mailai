@@ -1,6 +1,8 @@
-const express = require('express');
-const fs = require('fs').promises;
-const path = require('path');
+import express from 'express';
+import fs from 'fs/promises';
+import path from 'path';
+import logger from './src/utils/logger.js';
+
 const app = express();
 
 let logs = [];
@@ -21,7 +23,7 @@ function log(type, message) {
     if (logs.length > MAX_LOGS) {
         logs.pop(); // Roll the log after the limit
     }
-    console.log(`${entry.timestamp.toISOString()} [${type}] ${message}`);
+    logger.monitor(`${entry.timestamp.toISOString()} [${type}] ${message}`);
 }
 
 // API Routes
@@ -59,9 +61,9 @@ function getPort() {
 }
 
 // Export logging function and app
-module.exports = { log, app };
+export { log, app };
 
-if (require.main === module) {
+if (import.meta.url === `file://${__filename}`) {
     const port = getPort();
-    app.listen(port, () => console.log(`Monitor running on http://localhost:${port}`));
+    app.listen(port, () => logger.monitor(`Monitor running on http://localhost:${port}`));
 }

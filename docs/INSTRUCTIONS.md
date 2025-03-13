@@ -1,10 +1,9 @@
 # Development Guidelines
 
 ## Module System
-All JavaScript modules must use CommonJS syntax:
-- Use `require()` for imports
-- Use `module.exports` for exports
-- Avoid ES6 module syntax (import/export)
+All JavaScript modules must use ESM syntax:
+- Use `import` for imports
+- Use `export` for exports
 
 ## Configuration
 - Store environment variables in .env file

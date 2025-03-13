@@ -1,4 +1,5 @@
-const { log } = require('../utils/logger');
+import fs from 'fs';
+import { log } from '../server.js';
 
 class AIService {
   constructor(config) {
@@ -19,4 +20,4 @@ class AIService {
   }
 }
 
-module.exports = AIService;
+export default AIService;
