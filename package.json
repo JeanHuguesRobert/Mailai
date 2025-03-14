@@ -10,7 +10,7 @@
     "web:dev": "cd web && npm run dev",
     "web:build": "cd web && npm run build",
     "web:preview": "cd web && npm run preview",
-    "test": "echo \"Error: no test specified\" && exit 1"
+    "test": "jest"
   },
   "keywords": [
     "email",
@@ -50,5 +50,8 @@
   "homepage": "https://jeanhuguesrobert.github.io/mailai",
   "engines": {
     "node": ">=18.0.0"
+  },
+  "devDependencies": {
+    "jest": "^29.7.0"
   }
 }
