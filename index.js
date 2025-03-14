@@ -306,6 +306,7 @@ function getPersonaConfig(id) {
     throw new Error(`AI provider name '${ai_provider}' must be lowercase in '${prefix}ai'. Example: '${ai_provider.toLowerCase()}'`);
   }
 
+
   persona.ai = { provider: ai_provider };
 
   // Check for optional prompt
@@ -322,6 +323,20 @@ function getPersonaConfig(id) {
     persona.ai.message = message;
   }
 
+  // xxx_yyy_zzz=vvv will build a nested structure
+function recur( param, value, current )
+  {
+    // If terminal node, store value
+    if( !param.includes( "_" )){
+      // Where ?
+      return;
+    }
+    const next = param.split( "_" )[0];
+    const rest = param.slice( next.length + 1 );
+    current[ next ] = current[ next ] || {};
+    recur( rest, value, current[ next ] );
+  }
+
   // Get provider-specific settings
   const providerPrefix = `${prefix}${ai_provider}_`;
   for (const [key, value] of Object.entries(process.env)) {
@@ -331,7 +346,12 @@ function getPersonaConfig(id) {
       if (param !== param.toLowerCase()) {
         throw new Error(`AI parameter '${param}' must be lowercase in '${key}'. Example: '${key.replace(param, param.toLowerCase())}'`);
       }
-      persona.ai[param] = value;
+      // Dispatch between main provider and tools
+      if( param.includes( "_" )){
+        recur( param, value, persona.ai );
+      }else{
+        persona[param] = value;
+      }
     // Else collect persona settings
     }else if( key.startsWith(prefix) ){
       const param = key.slice(prefix.length);
@@ -339,7 +359,12 @@ function getPersonaConfig(id) {
       if( param === "imap_port" ){
         persona[param] = parseInt(value, 10);
       }else{
-        persona[param] = value;
+        // Dispatch between terminals and sub-objects
+        if( param.includes( "_" )){
+          recur( param, value, persona );
+        }else{
+          persona[param] = value;
+        }
       }
     }
   }
