@@ -1,12 +1,28 @@
+class MailMessage {
+  constructor() {
+    this.id = null;
+    this.flow = 'incoming';
+    this.raw = null;
+    this.header = null;
+    this.body = null;
+    this.parsed = null;
+    this.persona = null;
+    this.processor = null;
+  }
+}
+
 class MailAIPlugin {
-  constructor(config = {}) {
+  constructor(persona) {
+    this.id = persona.id + "_" + persona.ai.provider;
+    this.persona = persona;
+    this.mailai = mailai;
     this.config = config;
   }
 
-  async beforeProcessEmail(emailData) { return emailData; }
-  async afterProcessEmail(emailData, response) { return response; }
-  async beforeSendEmail(emailOptions) { return emailOptions; }
-  async onError(error, context) { }
+  async handle(message) { }
+  async onError(error, message ) {
+    log("error", `Unhandled error in plugin ${this.id}: ${error.message}`);
+  }
 }
 
-export { MailAIPlugin };
+export { MailAIPlugin, MailMessage };

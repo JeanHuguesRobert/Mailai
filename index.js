@@ -6,6 +6,7 @@ import fs from 'fs';
 import path from 'path';
 
 import dotenv from 'dotenv';
+import yargs from 'yargs';
 
 import https from 'https';
 import http from 'http';
@@ -14,21 +15,205 @@ import express from 'express';
 
 import Imap from 'imap';
 import nodemailer from 'nodemailer';
+import mailparser from 'mailparser';
+import { MailMessage, MailAIPlugin } from './plugins/base.js';
 
-import log from './src/utils/logger.js';
-import PluginManager from './plugins/manager.js';
+
+/* --------------------------------------------------------------------------
+ *  Logging
+ */
+
+import chalk from 'chalk';
+
+console.log(`Chalk loaded: ${chalk.blue}`); // Debugging line to check chalk
+console.log(`Chalk type: ${typeof chalk}`); // Log the type of chalk
+console.log(`Available chalk functions: ${JSON.stringify(Object.keys(chalk))}`); // Log available color functions
+
+class Logger {
+  constructor() {
+    this.logDir = 'logs';
+    this.logToFile = process.env.MAILAI_LOG_TO_FILE === 'true'; // Check the environment variable
+    this.useColor = process.env.MAILAI_USE_COLOR === 'true'; // Check for color usage
+    console.log(`MAILAI_USE_COLOR: ${this.useColor}`); // Debugging line
+    this.entered = false; // Flag to detect recursive calls
+
+    // Create logs directory if it doesn't exist
+    if (this.logToFile && !fs.existsSync(this.logDir)) {
+      fs.mkdirSync(this.logDir);
+    }
+
+    // Create mode-specific log file
+    const mode = process.env.MAILAI_mode || 'development';
+    const date = new Date().toISOString().split('T')[0];
+    this.logFile = path.join(this.logDir, `mailai-${date}.log`);
+    this.modeLogFile = path.join(this.logDir, `mailai-${mode}-${date}.log`);
+
+    // Add startup marker to mode log
+    const startupMessage = `\n=== ${mode.toUpperCase()} MODE STARTED AT ${new Date().toISOString()} ===\n`;
+    if (this.logToFile) {
+      fs.appendFileSync(this.modeLogFile, startupMessage);
+    }
+  }
+
+  getLogLevel() {
+    const mode = process.env.MAILAI_mode || 'development';
+    switch(mode) {
+      case 'production':
+        return 'info';  // Only important info, warnings, and errors
+      case 'development':
+        return 'debug'; // All logs including debug
+      case 'testing':
+        return 'debug'; // All logs for testing
+      case 'dry_run':
+        return 'debug'; // All logs to verify what would happen
+      default:
+        return 'info';
+    }
+  }
+
+  shouldLog(level) {
+    const levels = {
+      debug: 0,
+      info: 1,
+      warning: 2,
+      error: 3
+    };
+
+    const currentLevel = levels[this.getLogLevel()];
+    const messageLevel = levels[level];
+
+    return messageLevel >= currentLevel;
+  }
+
+  formatMessage(level, message, emoji = '') {
+    const timestamp = new Date().toISOString();
+    const prefix = level.toUpperCase().padEnd(7);
+    const mode = process.env.MAILAI_mode || 'development';
+    return `${timestamp} [${mode}] ${prefix} ${emoji} ${message}`;
+  }
+
+  writeToFile(message) {
+    // Write to main log file if logging to file is enabled
+    if (this.logToFile) {
+      fs.appendFileSync(this.logFile, message + '\n');
+      fs.appendFileSync(this.modeLogFile, message + '\n');
+    }
+  }
+
+  log(level, message, emoji = '') {
+    if (this.entered) {
+      console.log(`Recursive call detected: ${message}`);
+      return;
+    }
+    this.entered = true;
+
+    console.log(`Logging level before assignment: ${level}`); // Debugging line to check level
+
+    // Log available colors from chalk
+    console.log(`Chalk colors: ${JSON.stringify(chalk.colors)}`); // Debugging line to check chalk colors
+
+    // Directly access color functions from chalk
+    const colorFn = this.useColor ? chalk[level] : chalk.white;
+    if (!colorFn) {
+      console.warn(`Invalid log level: ${level}. Defaulting to white.`);
+      level = 'info'; // Default to 'info' if invalid
+    }
+
+    if (!this.shouldLog(level)) {
+      this.entered = false;
+      return;
+    }
+
+    const formattedMessage = this.formatMessage(level, message, emoji);
+    this.writeToFile(formattedMessage);
+
+    // Console output with colors
+    const mode = process.env.MAILAI_mode || 'development';
+    if (mode !== 'production') {
+      if (mode === 'dry_run') {
+        console.log(chalk.cyan('🔍 [DRY RUN] ') + colorFn(formattedMessage));
+      } else if (mode === 'testing') {
+        console.log(chalk.magenta('🧪 [TEST] ') + colorFn(formattedMessage));
+      } else {
+        console.log(colorFn(formattedMessage));
+      }
+    }
+
+    this.entered = false;
+  }
+
+  debug(message) {
+    this.log('debug', message, '🔍');
+  }
+
+  info(message) {
+    this.log('info', message, '📝');
+  }
+
+  warning(message) {
+    this.log('warning', message, '⚠️');
+  }
+
+  error(message) {
+    this.log('error', message, '❌');
+  }
+
+  dryRun(message) {
+    if (process.env.MAILAI_mode === 'dry_run') {
+      this.log('info', `[DRY RUN] ${message}`, '🔍');
+    }
+  }
+
+  test(message) {
+    if (process.env.MAILAI_mode === 'testing') {
+      this.log('info', `[TEST] ${message}`, '🧪');
+    }
+  }
+
+  plugin(message) {
+    this.log('info', `[Plugin] ${message}`, '🔌');
+  }
+
+  email(message) {
+    this.log('info', `[Email] ${message}`, '📧');
+  }
+
+  ai(message) {
+    this.log('info', `[AI] ${message}`, '🤖');
+  }
+
+  imap(message) {
+    this.log('info', `[IMAP] ${message}`, 'imap');
+  }
+}
+
+
+/* --------------------------------------------------------------------------
+ *  Environment Configuration
+ */
+
+// Load environment configuration based on --env argument
+const argv = yargs.argv;
+const envFile = argv.env ? `./${argv.env}` : '.env';
+
+if (argv.env) {
+    dotenv.config({ path: envFile });
+    console.log(`Loaded environment configuration from ${envFile}`);
+} else {
+    dotenv.config(); // Load default .env
+}
 
 // Watch .env file for changes
 const __dirname = path.resolve();
-const dotEnvPath = path.join(__dirname, '.env');
+const dotEnvPath = path.join(__dirname, envFile);
 
 // Load current environment MailAI configuration
 function loadEnvConfig() {
   const config = {};
-  Object.keys(import.meta.env)
+  Object.keys(process.env)
     .filter(key => key.startsWith('MAILAI_') && !key.startsWith('MAILAI_STATS_'))
     .forEach(key => {
-      config[key] = import.meta.env[key];
+      config[key] = process.env[key];
     });
   return config;
 }
@@ -79,59 +264,12 @@ function setupEnvWatcher() {
 }
 
 
-async function updateEnvStats() {
-  try {
-    // Temporarily stop watching the .env file
-    dotEnvWatcher.close();
-    dotEnvWatcher = null;
-    
-    // Read the current .env file
-    let envContent = fs.readFileSync(dotEnvPath, 'utf8');
-    
-    // Update the stats values including quotas
-    const statsToUpdate = {
-      MAILAI_STATS_PROCESSED: mailai.monitoringStats.emailStats.processed,
-      MAILAI_STATS_SKIPPED: mailai.monitoringStats.emailStats.skipped,
-      MAILAI_STATS_ANSWERED: mailai.monitoringStats.emailStats.answered,
-      MAILAI_STATS_BCC: mailai.monitoringStats.emailStats.bccCopied,
-      MAILAI_LAST_RESET: emailStats.lastReset,
-      MAILAI_DAILY_COUNT: emailStats.dailyCount,
-      MAILAI_SENDER_HISTORY: JSON.stringify(Array.from(emailStats.senderHistory.entries()))
-    };
-    
-    // Update each stat in the .env content
-    Object.entries(statsToUpdate).forEach(([key, value]) => {
-      const regex = new RegExp(`^${key}=.*`, 'm');
-      if (regex.test(envContent)) {
-        envContent = envContent.replace(regex, `${key}=${value}`);
-      } else {
-        envContent += `\n${key}=${value}`;
-      }
-    });
-    
-    // Write the updated content back to the .env file
-    fs.writeFileSync(dotEnvPath, envContent);
-    
-    if (import.meta.env.MAILAI_DEBUG_MODE === 'true') {
-      log('debug', 'Updated statistics and quotas in .env file');
-    }
-    
-    // Resume watching the file with the same watcher function
-    setupEnvWatcher();
-  } catch (error) {
-    log('error', `Failed to update stats in .env: ${error.message}`);
-  }
-}
-
 let mailai = null;
 let config = null;
 let personas = null;
 
 class MailAI {
   constructor() {
-    this.emailService = new EmailService();
-    this.monitoringService = new MonitoringService();
-    this.pluginManager = new PluginManager();
     this.processedMessageIds = new Set();
     this.monitoringStats = {
       timeStarted: Date.now(),
@@ -147,6 +285,7 @@ class MailAI {
     mailai = this;
   }
 }
+
 
 // Collect config for a persona
 function getPersonaConfig(id) {
@@ -208,6 +347,7 @@ function getPersonaConfig(id) {
   return persona;
 }
 
+
 function validateMode(mode) {
   const validModes = ['development', 'production', 'testing', 'dry_run'];
   const inputMode = mode.toLowerCase();
@@ -218,7 +358,7 @@ function validateMode(mode) {
 }
 
 
-function populateConfig() {
+function loadConfigFromEnv() {
   const personas = {};
   mailai.personas = personas;
   const config = {
@@ -234,7 +374,7 @@ function populateConfig() {
     mailai
   };
   mailai.config = config;
-  console.log( "Config", config);
+  log('debug', 'Loading config', config);
 
   // Validate core settings
   if (config.min_days < 0 || config.max_days < 0) {
@@ -254,16 +394,20 @@ function populateConfig() {
     }
   }
   
-  console.log( "Loaded config", config);
+  log("debug", "Loaded config", config);
 
   // Throw error if no personas found
   if (!seen) {
     throw new Error('No personas found in configuration');
   } 
 
-  return config;
+  log('info', 'Configuration loaded successfully');
 }
 
+
+/* --------------------------------------------------------------------------
+ *  Email Processing
+ */
 
 function markWithCustomFlag(imap, uid) {
   if( config.mode === "dry_run") {
@@ -288,16 +432,16 @@ async function processEmail(message) {
   try {
     if (shouldProcessEmail(message)) {
       await askAI(message);
-      mailai.processedMessageIds.add(message.id);
-      mailai.monitoringStats.emailStats.processed++;
+      processedMessageIds.add(message.id);
+      emailStats.processed++;
       if( config.BCC_EMAILS) {
-        mailai.monitoringStats.emailStats.bccCopied++;
+        emailStats.bccCopied++;
       }
       
       const sender = message.header.from;
       if( sender ){
-        mailai.monitoringStats.senderHistory.set(sender, Date.now());
-        mailai.monitoringStats.dailyCount++;
+        emailStats.senderHistory.set(sender, Date.now());
+        emailStats.dailyCount++;
       }
       
       // If using custom flag strategy, mark the message
@@ -312,7 +456,7 @@ async function processEmail(message) {
       await updateEnvStats();
     } else {
       log('info', `Email "${message.subject}" from ${message.from} was not processed - Debug mode active`);
-      mailai.monitoringStats.emailStats.skipped++;
+      emailStats.skipped++;
       await updateEnvStats();
     }
   } catch (error) {
@@ -320,6 +464,7 @@ async function processEmail(message) {
     await gracefulShutdown(error);
   }
 }
+
 
 const connections = new Map(); 
 
@@ -344,6 +489,7 @@ function auth(req, res, next) {
     res.status(401).send('Invalid credentials');
   }
 }
+
 
 function createImapConnection(persona) {
   // Validate required fields
@@ -413,6 +559,7 @@ function createImapConnection(persona) {
   persona.imap = imap;
 }
 
+
 async function sendEmail(persona, options) {
   // Validate required fields
   const required = ['email_user', 'email_password', 'email_imap'];
@@ -475,6 +622,7 @@ async function sendEmail(persona, options) {
   }
 }
 
+
 async function processEmail(message) {
   const mode = process.env.MAILAI_mode || 'development';
   const persona = message.persona;
@@ -507,6 +655,7 @@ async function processEmail(message) {
     throw error;
   }
 }
+
 
 async function sendResponse(message) {
   const mode = process.env.MAILAI_mode || 'development';
@@ -597,64 +746,6 @@ async function markEmailAsProcessed(message) {
 }   
 
 
-async function startMailAI() {
-  new MailAI();
-  await mailai.pluginManager.loadPlugins();
-  mailai.monitoringService.start(parseInt( config.MONITOR_PORT || 3000, 10));
-  // For each persona, create and handle IMAP connection
-  personas.forEach(persona => {
-    
-    persona.config = config;
-    persona.maila = mailai
-    const imap = createImapConnection(persona);
-    
-    // Store the imap connection with the persona for later use
-    persona.imap = imap;
-    
-    imap.once('ready', () => {
-      log('info', `IMAP connection ready for ${persona.id}`);
-      openInbox(imap, (err, box) => {
-        if (err) {
-          log('error', `Failed to open inbox for ${persona.id}: ${err.message}`);
-          return;
-        }
-        
-        log('info', `Inbox opened for ${persona.id}, listening for new emails`);
-        
-        // Process existing unread emails first
-        processNewEmails(persona);
-        
-        // Set up email processing for new emails
-        imap.on('mail', (numNewMsgs) => {
-          log('info', `Received ${numNewMsgs} new message(s) for ${persona.email}`);
-          this.processNewEmails(imap, persona);
-        });
-      });
-    });
-
-    imap.once('error', err => {
-      log('error', `IMAP error for ${persona.email}: ${err.message}`);
-      // Attempt to reconnect after a delay
-      setTimeout(() => {
-        log('info', `Attempting to reconnect IMAP for ${persona.email}`);
-        imap.connect();
-      }, 30000); // 30 second delay before reconnect
-    });
-
-    imap.once('end', () => {
-      log('info', `IMAP connection ended for ${persona.email}`);
-      // Attempt to reconnect after a delay
-      setTimeout(() => {
-        log('info', `Attempting to reconnect IMAP for ${persona.email}`);
-        imap.connect();
-      }, 30000); // 30 second delay before reconnect
-    });
-
-    imap.connect();
-  });
-}
-
-
 async function processNewEmails(persona) {
   try {
     const messages = await fetchNewEmails(persona);
@@ -672,8 +763,6 @@ async function processNewEmails(persona) {
     }
   }
 }
-
-
 
 // Function to get search criteria based on strategy
 function getSearchCriteria( persona ) {
@@ -764,36 +853,27 @@ function fetchNewEmails( persona ) {
   });
 }
 
-// In the askAI function
-async function askAI(message) {
-  const persona = message.persona;
+
+async function askAI(rawMessage) {
+  console.log( rawMessage );
+  const message = new MailMessage();
+  message.id = rawMessage.id;
+  message.body = rawMessage.body;
+  message.header = rawMessage.header;
+  message.raw = rawMessage;
+  message.parsed = mailparser.parse(rawMessage);
+  message.persona = rawMessage.persona;
+  log('email', `Processing email for ${message.persona.id}`);
+  const plugin = getPlugin(message.persona.id);
+  message.processor = plugin;
   try {
-    log('email', `Processing email for ${persona.id}`);
-    await mailai.pluginManager.executeHook('beforeProcessEmail', message );
-    const promptCustom = fs.readFileSync(resolveLocalPath(persona.prompt), 'utf8');
-    const mergedPrompt = `${BASE_PROMPT}\n${promptCustom}`;
-    const messages = [
-      { role: 'system', content: mergedPrompt },
-      { role: 'user', content: `${message} (as ${persona})` },
-    ];
-    
-    const response = await aiService.getCompletion(messages, persona);
-    
-    if (!response) {
-      throw new Error('No response received from AI service');
+    plugin.handle( message );
+    if( message.response ){
+      await sendEmail( message.response );
     }
-    
-    log('ai', `Got response from AI service`);
-    const processedResponse = await mailai.pluginManager.executeHook('afterProcessEmail', message, response, persona );
-    const emailSubject = `Re: ${message.header?.subject}`;
-    
-    await sendEmail(recipient.address, emailSubject, processedResponse, persona.email);
   } catch (error) {
-    log('error', error.message);
-    await mailai.pluginManager.executeHook('onError', error, { question, recipient, persona });
-    
-    // Always throw the error to be handled by the caller
-    throw error;
+    log('debug', error.message);
+    await plugin.onError(error, message);
   }
 }
 
@@ -805,13 +885,9 @@ async function sendEmail(message) {
 
   const transporter = nodemailer.createTransport({
     service: 'gmail',
-  auth: {
-    user: from,
-    pass: import.meta.env.MAILAI_EMAIL_PASSWORD
-  },
     auth: {
       user: from,
-      pass: import.meta.env.MAILAI_EMAIL_PASSWORD,
+      pass: process.env.MAILAI_EMAIL_PASSWORD
     },
   });
 
@@ -820,7 +896,7 @@ async function sendEmail(message) {
     to: to,
     subject: subject,
     text: emailContent,
-    bcc: import.meta.env.MAILAI_BCC_EMAILS ? import.meta.env.MAILAI_BCC_EMAILS.split(',').map(email => email.trim()) : [],
+    bcc: process.env.MAILAI_BCC_EMAILS ? process.env.MAILAI_BCC_EMAILS.split(',').map(email => email.trim()) : [],
   };
 
   try {
@@ -830,7 +906,7 @@ async function sendEmail(message) {
   } catch (error) {
     console.error('Email sending error:', error);
     // Always stop on errors in development/debug mode
-    if (import.meta.env.NODE_ENV !== 'production' || import.meta.env.MAILAI_DEBUG_MODE === 'true') {
+    if (process.env.NODE_ENV !== 'production' || process.env.MAILAI_DEBUG_MODE === 'true') {
       log('error', 'Stopping process due to email sending error in development mode');
       await gracefulShutdown(error);
     }
@@ -850,7 +926,7 @@ function createImapConnection(persona) {
   };
 
   const missingConfigs = Object.entries(requiredConfigs)
-    .filter(([key]) => !import.meta.env[key])
+    .filter(([key]) => !process.env[key])
     .map(([_, desc]) => desc);
 
   if (missingConfigs.length > 0) {
@@ -903,14 +979,14 @@ function openInbox(imap, cb) {
 // After the initial requires, modify the emailStats initialization
 // Fix the emailStats initialization to properly handle the sender history
 const emailStats = {
-  dailyCount: parseInt(import.meta.env.MAILAI_DAILY_COUNT || '0'),
-  lastReset: parseInt(import.meta.env.MAILAI_LAST_RESET || new Date().setHours(0, 0, 0, 0)),
+  dailyCount: parseInt(process.env.MAILAI_DAILY_COUNT || '0'),
+  lastReset: parseInt(process.env.MAILAI_LAST_RESET || new Date().setHours(0, 0, 0, 0)),
   senderHistory: new Map(
-    import.meta.env.MAILAI_SENDER_HISTORY ? 
+    process.env.MAILAI_SENDER_HISTORY ? 
     // Add a try-catch to handle potential JSON parsing errors
     (() => {
       try {
-        const parsed = JSON.parse(import.meta.env.MAILAI_SENDER_HISTORY);
+        const parsed = JSON.parse(process.env.MAILAI_SENDER_HISTORY);
         // Check if it's an array of arrays (proper format for Map constructor)
         if (Array.isArray(parsed) && parsed.every(item => Array.isArray(item))) {
           return parsed.map(([email, time]) => [email, parseInt(time)]);
@@ -927,46 +1003,9 @@ const emailStats = {
   )
 };
 
-// Modify the updateEnvStats function to include quota information
-async function updateEnvStats() {
-  try {
-    const envPath = path.join(__dirname, '.env');
-    let envContent = fs.readFileSync(envPath, 'utf8');
-    
-    // Update the stats values including quotas
-    const statsToUpdate = {
-      MAILAI_STATS_PROCESSED: mailai.monitoringStats.emailStats.processed,
-      MAILAI_STATS_SKIPPED: mailai.monitoringStats.emailStats.skipped,
-      MAILAI_STATS_ANSWERED: mailai.monitoringStats.emailStats.answered,
-      MAILAI_STATS_BCC: mailai.monitoringStats.emailStats.bccCopied,
-      MAILAI_LAST_RESET: emailStats.lastReset,
-      MAILAI_DAILY_COUNT: emailStats.dailyCount,
-      MAILAI_SENDER_HISTORY: JSON.stringify(Array.from(emailStats.senderHistory.entries()))
-    };
-    
-    // Update each stat in the .env content
-    Object.entries(statsToUpdate).forEach(([key, value]) => {
-      const regex = new RegExp(`^${key}=.*`, 'm');
-      if (regex.test(envContent)) {
-        envContent = envContent.replace(regex, `${key}=${value}`);
-      } else {
-        envContent += `\n${key}=${value}`;
-      }
-    });
-    
-    // Write the updated content back to the .env file
-    fs.writeFileSync(envPath, envContent);
-    
-    if (import.meta.env.MAILAI_DEBUG_MODE === 'true') {
-      log('debug', 'Updated statistics and quotas in .env file');
-    }
-  } catch (error) {
-    log('error', `Failed to update stats in .env: ${error.message}`);
-  }
-}
 
 function shouldProcessEmail(emailData) {
-  const isDebug = import.meta.env.MAILAI_DEBUG_MODE === 'true';
+  const isDebug = process.env.MAILAI_DEBUG_MODE === 'true';
   
   // Reset daily counter if it's a new day
   const today = new Date().setHours(0, 0, 0, 0);
@@ -1015,6 +1054,77 @@ function shouldProcessEmail(emailData) {
 }
 
 
+async function startMailAI() {
+
+  new MailAI();
+
+  await loadPlugins();
+  loadConfigFromEnv();
+  loadStatFromEnv();
+  setupEnvWatcher();
+
+  await startMonitoring(parseInt( config.MONITOR_PORT || 3000, 10));
+
+  // For each persona, create and handle IMAP connection
+  personas.forEach(persona => {
+    
+    persona.config = config;
+    persona.maila = mailai
+    const imap = createImapConnection(persona);
+    
+    // Store the imap connection with the persona for later use
+    persona.imap = imap;
+    
+    imap.once('ready', () => {
+      log('info', `IMAP connection ready for ${persona.id}`);
+      openInbox(imap, (err, box) => {
+        if (err) {
+          log('error', `Failed to open inbox for ${persona.id}: ${err.message}`);
+          return;
+        }
+        
+        log('info', `Inbox opened for ${persona.id}, listening for new emails`);
+        
+        // Process existing unread emails first
+        processNewEmails(persona);
+        
+        // Set up email processing for new emails
+        imap.on('mail', (numNewMsgs) => {
+          log('info', `Received ${numNewMsgs} new message(s) for ${persona.email}`);
+          processNewEmails(persona);
+        });
+      });
+    });
+
+    imap.once('error', err => {
+      log('error', `IMAP error for ${persona.email}: ${err.message}`);
+      // Attempt to reconnect after a delay
+      setTimeout(() => {
+        log('info', `Attempting to reconnect IMAP for ${persona.email}`);
+        imap.connect();
+      }, 30000); // 30 second delay before reconnect
+    });
+
+    imap.once('end', () => {
+      log('info', `IMAP connection ended for ${persona.email}`);
+      // Attempt to reconnect after a delay
+      setTimeout(() => {
+        log('info', `Attempting to reconnect IMAP for ${persona.email}`);
+        imap.connect();
+      }, 30000); // 30 second delay before reconnect
+    });
+
+    imap.connect();
+  });
+
+  log('info', 'MailAI started successfully');
+}
+
+
+/* --------------------------------------------------------------------------
+ *  Utils
+ */
+
 function resolveLocalPath(urlString) {
   const parsedUrl = url.parse(urlString);
   if (parsedUrl.protocol === 'file:' || !parsedUrl.protocol) {
@@ -1053,61 +1163,310 @@ async function loadPrompt(prompt) {
   });
 }
 
-class MonitoringService {
-  constructor() {
-    this.stats = {
-      startTime: Date.now(),
-      connections: new Map(),
-      emailStats: this.initializeStats()
-    };
-  }
 
-  initializeStats() {
-    return {
-      processed: 0,
-      skipped: 0,
-      answered: 0,
-      errors: 0,
-      responseTime: {
-        avg: 0,
-        min: Infinity,
-        max: 0,
-        total: 0,
-        count: 0
-      }
-    };
-  }
+/* --------------------------------------------------------------------------
+ *  Monitoring
+ */
 
-  start(port) {
-    this.port = port;
-    this.updateStats();
+const stats = {
+  startTime: Date.now(),
+  uptime: 0,
+  connections: new Map(),
+  processed: 0,
+  skipped: 0,
+  answered: 0,
+  errors: 0,
+  responseTime: {
+    avg: 0,
+    min: Infinity,
+    max: 0,
+    total: 0,
+    count: 0
   }
+};
 
-  updateStats() {
-    this.stats.uptime = Date.now() - this.stats.startTime;
-  }
 
-  recordMetric(type) {
-    if (type in this.stats.emailStats) {
-      this.stats.emailStats[type]++;
-    }
-  }
+function updateStats() {
+  stats.uptime = Date.now() - stats.startTime;
+}
 
-  recordResponseTime(time) {
-    const rt = this.stats.emailStats.responseTime;
-    rt.total += time;
-    rt.count++;
-    rt.avg = rt.total / rt.count;
-    rt.min = Math.min(rt.min, time);
-    rt.max = Math.max(rt.max, time);
-  }
 
-  getStats() {
-    this.updateStats();
-    return this.stats;
+function recordMetric(type) {
+  if (type in stats) {
+    stats[type]++;
   }
 }
 
+
+function recordResponseTime(time) {
+  const rt = stats.responseTime;
+  rt.total += time;
+  rt.count++;
+  rt.avg = rt.total / rt.count;
+  rt.min = Math.min(rt.min, time);
+  rt.max = Math.max(rt.max, time);
+}
+
+
+function getStats() {
+  updateStats();
+  return stats;
+}
+
+function loadStatFromEnv() {
+  const statKeys = [
+    'processed',
+    'skipped',
+    'answered',
+    'errors',
+    'responseTime'
+  ];
+
+  statKeys.forEach(key => {   
+    if (process.env[`MAILAI_STATS_${key.toUpperCase()}`]) {
+      stats[key] = parseInt(process.env[`MAILAI_STATS_${key.toUpperCase()}`], 10);
+    }
+  }); 
+  log('debug', 'Loaded stats from environment', stats);
+  log("info", "Loaded stats from environment");
+}
+
+
+async function updateEnvStats() {
+  try {
+    // Temporarily stop watching the .env file
+    dotEnvWatcher.close();
+    dotEnvWatcher = null;
+    
+    // Read the current .env file
+    let envContent = fs.readFileSync(dotEnvPath, 'utf8');
+    
+    // Update the stats values including quotas
+    const statsToUpdate = {
+      MAILAI_STATS_PROCESSED: stats.processed,
+      MAILAI_STATS_SKIPPED: stats.skipped,
+      MAILAI_STATS_ANSWERED: stats.answered,
+      MAILAI_STATS_BCC: stats.bccCopied,
+      MAILAI_LAST_RESET: stats.lastReset,
+      MAILAI_DAILY_COUNT: stats.dailyCount,
+      MAILAI_SENDER_HISTORY: JSON.stringify(Array.from(emailStats.senderHistory.entries()))
+    };
+    
+    // Update each stat in the .env content
+    Object.entries(statsToUpdate).forEach(([key, value]) => {
+      const regex = new RegExp(`^${key}=.*`, 'm');
+      if (regex.test(envContent)) {
+        envContent = envContent.replace(regex, `${key}=${value}`);
+      } else {
+        envContent += `\n${key}=${value}`;
+      }
+    });
+    
+    // Write the updated content back to the .env file
+    fs.writeFileSync(dotEnvPath, envContent);
+    
+    if (process.env.MAILAI_DEBUG_MODE === 'true') {
+      log('debug', 'Updated statistics and quotas in .env file');
+    }
+    
+    // Resume watching the file with the same watcher function
+    setupEnvWatcher();
+  } catch (error) {
+    log('error', `Failed to update stats in .env: ${error.message}`);
+  }
+}
+
+/* --------------------------------------------------------------------------
+ *  Web based monitoring
+ */
+
+const app = express();
+
+let logs = [];
+const MAX_LOGS = 10000;
+
+app.use(express.json());
+app.use(express.static('web'));
+
+// Serve Vite build in dev mode
+if (process.env.NODE_ENV !== 'production') {
+  app.use(express.static('web/dist'));
+}
+
+// Logging middleware
+function log(type, message) {
+    const entry = { timestamp: new Date(), type, message };
+    logs.unshift(entry);
+    if (logs.length > MAX_LOGS) {
+        logs.pop(); // Roll the log after the limit
+    }
+    logger.monitor(`${entry.timestamp.toISOString()} [${type}] ${message}`);
+}
+
+// API Routes
+app.get('/api/logs', (req, res) => res.json(logs));
+
+app.get('/api/config', async (req, res) => {
+    // Clean recursively
+    const clearConfig = (obj) => {
+        Object.keys(obj).forEach(key => {
+            if (typeof obj[key] === 'object' && obj[key] !== null) {
+                clearConfig(obj[key]);
+            } else if (typeof obj[key] === 'string' && obj[key].startsWith('MAILAI_')) {
+                delete obj[key];
+            }
+        });
+    };
+    const config = loadEnvConfig();
+    clearConfig(config);
+    res.json({ config });
+});
+
+app.post('/api/config', async (req, res) => {
+    // Unload previous environment variables
+    Object.keys(process.env)
+        .filter(key => key.startsWith('MAILAI_'))
+        .forEach(key => delete process.env[key]);
+    // Load new environment variables
+    req.body.config.split('\n').forEach(line => {
+        const [key, value] = line.split('=');
+        // Skip if not a MAILAI_ variable
+        if (!key.startsWith('MAILAI_')) return;
+        process.env[key] = value;
+    });
+    // Update .env file
+    await updateEnvStats();
+    log('config', 'Configuration updated');
+    res.json({ success: true });
+});
+
+
+function getMonitoringPort() {
+    // Priority: CLI arg > env var > default
+    return parseInt(
+        process.argv.find(arg => arg.startsWith('--monitor-port='))?.split('=')[1] ||
+        process.env.MAILAI_MONITOR_PORT ||
+        3000
+    );
+}
+
+
+function startMonitoring() {
+    const port = getMonitoringPort();
+    app.listen(port, function monitorListener( ) {
+      logger.monitor(`Monitor running on http://localhost:${port}`);
+    });
+}
+
+
+/* --------------------------------------------------------------------------
+ *  Plugins
+ */
+
+const plugins = new Map();
+const pluginsDir = path.join(__dirname, 'enabled');
+
+async function loadPlugins() {
+    try {
+        logger.plugin(`Plugins directory path: ${pluginsDir}`);
+
+        if (!(await fs.access(pluginsDir)).isDirectory()) {
+            logger.error(`Plugins directory does not exist: ${pluginsDir}`);
+            throw new Error('Plugins directory not found.');
+        }
+
+        const pluginsToLoad = ['unavailable.js']; // Only load the unavailable plugin
+        const files = await fs.readdir(this.pluginsDir); // Use asynchronous version
+        logger.plugin(`Found ${files.length} files in plugins directory: ${this.pluginsDir}`);
+        for (const file of files) {
+            if (pluginsToLoad.includes(file)) {
+                logger.plugin(`Attempting to load plugin: ${file}`);
+                try {
+                    const pluginPath = path.join(this.pluginsDir, file);
+                    const PluginClass = await import(`file://${pluginPath}`);
+                    const aiProviderName = file.replace('.js', '').toLowerCase();
+                    const plugin = new PluginClass.default();
+
+                    if (!plugin.processMessage) {
+                        throw new Error(`Plugin ${file} missing required method: processMessage`);
+                    }
+
+                    this.plugins.set(aiProviderName, plugin);
+                    logger.plugin(`Successfully loaded provider plugin: ${file}`, {
+                        ai: aiProviderName,
+                    });
+                } catch (error) {
+                    logger.error(`Failed to load plugin ${file}: ${error.message}`);
+                    throw new Error(`Plugin loading failed for ${file}`); // Stop execution on error
+                }
+            }
+        }
+        logger.plugin('All plugins loaded successfully');
+    } catch (error) {
+        logger.error(`Failed to read plugins directory: ${error.message}`);
+        throw new Error('Plugin loading failed, stopping execution.');
+    }
+}
+    
+function getPlugin(provider) {
+    const plugin = plugins.get(provider.toLowerCase());
+    if (!plugin) {
+        throw new Error(`No plugin found for provider: ${provider}`);
+    }
+    return plugin;
+}
+
+async function executeHook(hookName, plugin, ...args) {
+    try {
+        if (typeof plugin[hookName] === 'function') {
+            logger.plugin(`Executing hook: ${hookName}`, {
+                plugin: plugin.constructor.name,
+                args: args.map(arg => typeof arg === 'object' ? Object.keys(arg) : typeof arg)
+            });
+            return await plugin[hookName](...args);
+        }
+    } catch (error) {
+        logger.error(`Hook execution failed: ${hookName}`, {
+            plugin: plugin.constructor.name,
+            error: error.message,
+            stack: error.stack
+        });
+        throw error;
+    }
+}
+
+async function processMessage(aiProvider, message, config) {
+    const plugin = getPlugin(aiProvider);
+    try {
+        logger.plugin(`Processing message with AI provider: ${aiProvider}`, {
+            messageId: message.id,
+            config: {
+                ...config,
+                // Redact sensitive information
+                email_password: '***',
+                password: '***'
+            }
+        });
+        const result = await plugin.processMessage(message, config);
+        logger.plugin(`Message processed successfully: ${aiProvider}`, {
+            messageId: message.id,
+            success: true
+        });
+        return result;
+    } catch (error) {
+        logger.error(`Message processing failed: ${aiProvider}`, {
+            messageId: message.id,
+            error: error.message,
+            stack: error.stack
+        });
+        throw error;
+    }
+}
+
+
+/* --------------------------------------------------------------------------
+ *  Start & exit
+ */
 
 // Add at the top level, after the initial requires
 // Improve the gracefulShutdown function with better error tracing
@@ -1145,6 +1504,5 @@ process.on('SIGINT', async () => {
   log('info', 'Received SIGINT signal');
   await gracefulShutdown();
 });
-
 
 startMailAI();
