@@ -170,6 +170,49 @@ This document outlines the steps and considerations for rebuilding the MailAI ap
 - Begin implementing these tasks in the codebase, starting with the `EmailService` class and configuration settings.
 - Ensure to document any changes made during the implementation process for future reference.
 
+## README.md
+# MailAI
+
+## Overview
+MailAI is an application designed for processing emails with advanced features, including AI integration and plugin support.
+
+## Features
+- **Email Processing**: Handles incoming and outgoing emails using IMAP and SMTP protocols.
+- **AI Integration**: Allows for AI responses based on email content.
+- **Plugin System**: Supports plugins for customizable email handling.
+- **Node-RED Integration**: Embeds Node-RED for flow-based programming and automation.
+
+## Installation
+1. Clone the repository:
+   ```bash
+   git clone https://your-repo-url.git
+   cd Mailai
+   ```
+2. Install dependencies:
+   ```bash
+   npm install
+   ```
+3. Create a `.env` file based on the `.env.example` template to configure your environment settings.
+
+## Usage
+- Start the application:
+   ```bash
+   node index.js --env development
+   ```
+- Access the Node-RED editor at `http://localhost:1880/red`.
+
+## Configuration
+- Update the `.env` file with your IMAP and SMTP settings, as well as any other necessary configurations.
+
+## Logging
+- Logs are stored in the `logs` directory. You can configure logging preferences in the `.env` file.
+
+## Contributing
+- Contributions are welcome! Please submit a pull request or open an issue for discussion.
+
+## License
+This project is licensed under the MIT License.
+
 ## Conversation Summary
 
 This document contains a summary of the conversation regarding the user's experience with Git, including issues faced, potential causes of lost changes, and insights on branch management.
@@ -202,5 +245,3 @@ The conversation also covered the creation of the `main` branch and the `origin/
 
 1. **Document Findings in REBUILD.md**: Compile all findings and tasks into the REBUILD.md document to ensure a comprehensive reconstruction plan.
 2. **Outline Specific Tasks**: Create a detailed list of tasks that need to be completed for each functionality discussed.
-
----

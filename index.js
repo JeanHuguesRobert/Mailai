@@ -1088,6 +1088,10 @@ async function startMailAI() {
   loadStatFromEnv();
   setupEnvWatcher();
 
+  if( config.NODE_RED_USER_DIR){
+    startNodeRED();
+  }
+
   await startMonitoring(parseInt( config.MONITOR_PORT || 3000, 10));
 
   // For each persona, create and handle IMAP connection
@@ -1143,6 +1147,19 @@ async function startMailAI() {
   });
 
   log('info', 'MailAI started successfully');
+}
+
+async function stopMailAI() {
+  // Stop fetching emails
+  personas.forEach(persona => {
+    if (persona.imap) {
+      persona.imap.end();
+      persona.imap = null;
+    }
+  });
+  // Save stats before exit
+  await updateEnvStats();
+  stopNodeRED();
 }
 
 
@@ -1490,6 +1507,83 @@ async function processMessage(aiProvider, message, config) {
 
 
 /* --------------------------------------------------------------------------
+ *  Node-RED integration
+ */
+
+const RED = require('node-red');
+
+// Create a settings object for Node-RED
+const settings = {
+  httpAdminRoot: '/red', // Admin UI path
+  httpNodeRoot: '/api', // API path for HTTP nodes
+  userDir: config.NODE_RED_USER_DIR, // Directory for Node-RED user data
+  functionGlobalContext: {}, // Global context for functions
+};
+
+// Initialize Node-RED
+const server = RED.init(app, settings);
+
+// Serve the Node-RED editor
+app.use( settings.httpAdminRoot, RED.httpAdmin );
+
+// Serve the Node-RED API
+app.use( settings.httpNodeRoot, RED.httpNode );
+
+
+
+/**
+ * Function to trigger an input event in Node-RED
+ * @param {Object} payload - The message payload to send to Node-RED
+ * @param {string} nodeId - The ID of the Node-RED node to trigger
+ */
+async function triggerNodeRedInputEvent(payload, nodeId) {
+  try {
+    const response = await axios.post(`http://localhost:1880/api/${nodeId}`, payload);
+    console.log('Node-RED response:', response.data);
+  } catch (error) {
+    console.error('Error triggering Node-RED input event:', error.message);
+  }
+}
+
+// Example usage
+const helloPayload = {
+  message: 'Hello from MailAI!',
+  timestamp: new Date().toISOString(),
+};
+const byePayload = {
+  message: 'Bye from MailAI!',
+  timestamp: new Date().toISOString(),
+};
+
+let nodeREDServer;
+
+function startNodeRED() {
+  nodeREDServer = app.listen(1880, (err) => {
+    if (err) {
+      log('error', `Failed to start Node-RED server: ${err.message}`);
+      return;
+    }
+    log('info', 'Node-RED server started on http://localhost:1880');
+  });
+
+  setTimeout(() => {
+    triggerNodeRedInputEvent(helloPayload, 'MailAI');
+  }, 5000);
+}
+
+function stopNodeRED() {
+  if (nodeREDServer) {
+    triggerNodeRedInputEvent(byePayload, 'MailAI');
+    setTimeout(() => {
+      nodeREDServer.close();
+      log('info', 'Node-RED server stopped');
+    }, 5000);
+  }
+}
+
+
+
+/* --------------------------------------------------------------------------
  *  Start & exit
  */
 
@@ -1497,14 +1591,15 @@ async function processMessage(aiProvider, message, config) {
 // Improve the gracefulShutdown function with better error tracing
 async function gracefulShutdown(error = null) {
   try {
-    // Save stats before exit
-    await updateEnvStats();
+    log("warn", "Shutting down, please wait...");
+    stopMailAI();
+    log('info', 'MailAI stopped');
     if (error) {
       log('error', `Shutting down due to error: ${error.message}`);
       // Add stack trace for better debugging
       log('debug', `Error stack trace: ${error.stack}`);
     } else {
-      log('info', 'Gracefully shutting down');
+      log('info', 'Gracefull exit done');
     }
   } catch (saveError) {
     log('error', `Failed to save stats during shutdown: ${saveError.message}`);
@@ -1528,6 +1623,10 @@ process.on('unhandledRejection', async (reason, promise) => {
 process.on('SIGINT', async () => {
   log('info', 'Received SIGINT signal');
   await gracefulShutdown();
+  setTimeout(() => {
+    log('info', 'Forcefully shutting down');
+    process.exit(1);
+  }, 5000);
 });
 
 startMailAI();

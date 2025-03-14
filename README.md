@@ -1,29 +1,29 @@
-# Mailai - AI Email Assistant
+# MailAI - AI Email Assistant
 
-Mailai is your intelligent email management solution that automates email responses using AI. Perfect for:
+MailAI is your intelligent email management solution that automates email responses using AI. Perfect for:
 
-- **Professional Teams**: Handle client inquiries, support tickets, and general correspondence with consistent, AI-powered responses
-- **Small Businesses**: Provide 24/7 email support without dedicated staff
-- **Personal Use**: Manage multiple email accounts with different personas (e.g., work, personal, volunteer)
-- **Temporary Absence**: Set up auto-responses that are more intelligent than traditional "out of office" replies
-- **Email Triage**: Process and categorize incoming emails automatically
-- **Multi-Language Support**: Respond to emails in multiple languages using AI capabilities
+- **Professional Teams**: Handle client inquiries, support tickets, and general correspondence with consistent, AI-powered responses.
+- **Small Businesses**: Provide 24/7 email support without dedicated staff.
+- **Personal Use**: Manage multiple email accounts with different personas (e.g., work, personal, volunteer).
+- **Temporary Absence**: Set up auto-responses that are more intelligent than traditional "out of office" replies.
+- **Email Triage**: Process and categorize incoming emails automatically.
+- **Multi-Language Support**: Respond to emails in multiple languages using AI capabilities.
 
 ## 🚀 Key Features
 
-- Multi-persona email management with different AI configurations per role
-- Multiple AI provider support (OpenAI, Mistral, Claude, etc.)
-- Secure IMAP/SMTP handling with app-specific passwords
-- Plugin system for easy extensibility
-- Real-time monitoring dashboard
-- Rate limiting and cooldown periods
-- Multiple operation modes (development, production, testing, dry-run)
-- BCC copying for response monitoring
-- Detailed logging with mode-specific outputs
+- Multi-persona email management with different AI configurations per role.
+- Multiple AI provider support (OpenAI, Mistral, Claude, etc.).
+- Secure IMAP/SMTP handling with app-specific passwords.
+- Plugin system for easy extensibility.
+- Real-time monitoring dashboard.
+- Rate limiting and cooldown periods.
+- Multiple operation modes (development, production, testing, dry-run).
+- BCC copying for response monitoring.
+- Detailed logging with mode-specific outputs.
 
 ## 🎭 Multi-Persona Configuration
 
-Mailai supports multiple personas, allowing different AI configurations for different roles or contexts:
+MailAI supports multiple personas, allowing different AI configurations for different roles or contexts.
 
 ```env
 # Core Settings (always uppercase)
@@ -285,17 +285,14 @@ node index.js
 Create AI provider plugins in `plugins/enabled/` with the provider name as the filename:
 
 ```javascript
-import { MailAIPlugin } from '../base.js';
+import { MailAIPlugin, MailMessage } from '../base.js';
 
 class MyAIPlugin extends MailAIPlugin {
-  async beforeProcessEmail(emailData) {
-    // Pre-process email data
-    return emailData;
-  }
-
-  async afterProcessEmail(emailData, response) {
-    // Post-process AI response
-    return response;
+  async handle( message ) {
+    // Process the message
+    const response = new MailMessage();
+    // Fill the response
+    message.response = response;
   }
 }
 
@@ -354,6 +351,33 @@ Detailed documentation is available in the following guides:
 - [Plugin Development](docs/plugins.md) - Guide for developing MailAI provider plugins
 - [Security Guidelines](docs/security.md) - Security best practices and standards
 - [Architecture Guide](docs/ARCHITECTURE.md) - Technical architecture and system flows
+
+## Node-RED Integration
+
+MailAI embeds a Node-RED server, a flow-based programming tool that allows you to create workflows visually. This integration enables you to automate email processing and trigger actions based on incoming emails.
+
+### Key Features of Node-RED Integration
+- **Flow-Based Automation**: Create workflows that can process incoming emails and trigger responses based on defined criteria.
+- **HTTP Endpoints**: MailAI can send messages to Node-RED via HTTP requests, allowing seamless communication between the two systems.
+- **Real-Time Monitoring**: Use Node-RED to monitor email activities and visualize data flows in real-time.
+- **Custom Nodes**: Extend MailAI functionality by creating custom Node-RED nodes that interact with the MailAI application.
+- **Access the Editor**: Open your browser and navigate to `http://localhost:1880` to access the Node-RED editor. Use it to design your email triggered processing flows.
+
+### Triggering Node-RED from MailAI
+You can trigger events in Node-RED from MailAI by sending HTTP requests to defined endpoints. Use the `triggerNodeRedInputEvent` function to send messages to specific Node-RED nodes.
+
+### Example Usage
+```javascript
+const helloPayload = {
+  message: 'Hello from MailAI!',
+  timestamp: new Date().toISOString(),
+};
+
+triggerNodeRedInputEvent(helloPayload, 'MailAI');
+```
+
+### Conclusion
+Integrating Node-RED with MailAI enhances the application's capabilities by allowing for automated workflows and real-time data processing. This setup is ideal for users looking to streamline their email management processes.
 
 ## 📄 License
 
