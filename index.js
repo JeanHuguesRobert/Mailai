@@ -7,7 +7,6 @@ import path from 'path';
 
 import dotenv from 'dotenv';
 import yargs from 'yargs';
-
 import https from 'https';
 import http from 'http';
 import url from 'url';
@@ -193,7 +192,15 @@ class Logger {
  */
 
 // Load environment configuration based on --env argument
-const argv = yargs.argv;
+const argv = yargs()
+    .option('env', {
+        alias: 'e',
+        description: 'Specify the environment file',
+        type: 'string',
+    })
+    .argv;
+console.log(`Arguments: ${JSON.stringify(argv)}`);
+console.assert(argv);
 const envFile = argv.env ? `./${argv.env}` : '.env';
 
 if (argv.env) {
@@ -451,44 +458,6 @@ function markWithCustomFlag(imap, uid) {
     });
   });
 }
-  
-
-async function processEmail(message) {
-  try {
-    if (shouldProcessEmail(message)) {
-      await askAI(message);
-      processedMessageIds.add(message.id);
-      emailStats.processed++;
-      if( config.BCC_EMAILS) {
-        emailStats.bccCopied++;
-      }
-      
-      const sender = message.header.from;
-      if( sender ){
-        emailStats.senderHistory.set(sender, Date.now());
-        emailStats.dailyCount++;
-      }
-      
-      // If using custom flag strategy, mark the message
-      if (persona.marking === "flag") {
-        try {
-          await markWithCustomFlag(message);
-        } catch (flagError) {
-          log('warning', `Could not set custom flag: ${flagError.message}`);
-        }
-      }
-      
-      await updateEnvStats();
-    } else {
-      log('info', `Email "${message.subject}" from ${message.from} was not processed - Debug mode active`);
-      emailStats.skipped++;
-      await updateEnvStats();
-    }
-  } catch (error) {
-    log('error', `Failed to process email: ${error.message}`);
-    await gracefulShutdown(error);
-  }
-}
 
 
 const connections = new Map(); 
@@ -516,146 +485,14 @@ function auth(req, res, next) {
 }
 
 
-function createImapConnection(persona) {
-  // Validate required fields
-  const required = ['email_user', 'email_password', 'email_imap'];
-  const missing = required.filter(field => !persona[field]);
-  if (missing.length > 0) {
-    const error = `Missing required email fields for persona '${persona.id}': ${missing.join(', ')}. Example: MAILAI_${persona.id}_${missing[0]}=value`;
-    logger.error(error);
-    throw new Error(error);
-  }
-
-  // Validate email field names are lowercase
-  Object.keys(persona).forEach(key => {
-    if (key.startsWith('email_') && key !== key.toLowerCase()) {
-      const error = `Email field '${key}' must be lowercase in persona '${persona.id}'. Example: '${key.toLowerCase()}'`;
-      logger.error(error);
-      throw new Error(error);
-    }
-  });
-
-  const cleanPassword = persona.email_password.replace(/\s+/g, '');
-  
-  if (cleanPassword.length < 8) {
-    logger.warning(`Password for ${persona.email_user} seems too short (less than 8 characters)`);
-  }
-  
-  if (persona.email_user.includes('gmail.com') && cleanPassword.length !== 16) {
-    logger.warning(`Gmail account detected but password length is not 16 characters. Make sure you're using an App Password from Google Account settings`);
-  }
-
-  logger.imap(`Creating IMAP connection for persona '${persona.id}'`, {
-    user: persona.email_user,
-    host: persona.email_imap,
-    port: parseInt(persona.email_port) || 993
-  });
-
-  const imap = new Imap({
-    user: persona.email_user,
-    password: cleanPassword,
-    host: persona.email_imap,
-    port: parseInt(persona.email_port) || 993, // Default IMAPS port
-    tls: true,
-    tlsOptions: { rejectUnauthorized: false },
-    authTimeout: 3000,
-    connTimeout: 10000,
-    debug: process.env.MAILAI_MODE === 'debug' ? 
-      (text) => logger.debug(`IMAP Debug [${persona.id}]: ${text}`) : null
-  });
-
-  // Set up IMAP event handlers
-  imap.once('ready', () => {
-    logger.imap(`IMAP connection ready for '${persona.id}'`);
-  });
-
-  imap.once('error', (err) => {
-    logger.error(`IMAP error for '${persona.id}'`, err);
-  });
-
-  imap.once('end', () => {
-    logger.imap(`IMAP connection ended for '${persona.id}'`);
-  });
-
-  imap.on('mail', (numNewMsgs) => {
-    logger.imap(`Received ${numNewMsgs} new message(s) for '${persona.id}'`);
-  });
-
-  persona.imap = imap;
-}
-
-
-async function sendEmail(persona, options) {
-  // Validate required fields
-  const required = ['email_user', 'email_password', 'email_imap'];
-  const missing = required.filter(field => !persona[field]);
-  if (missing.length > 0) {
-    const error = `Missing required email fields for persona '${persona.id}': ${missing.join(', ')}. Example: MAILAI_${persona.id}_${missing[0]}=value`;
-    logger.error(error);
-    throw new Error(error);
-  }
-
-  // Validate email field names are lowercase
-  Object.keys(persona).forEach(key => {
-    if (key.startsWith('email_') && key !== key.toLowerCase()) {
-      const error = `Email field '${key}' must be lowercase in persona '${persona.id}'. Example: '${key.toLowerCase()}'`;
-      logger.error(error);
-      throw new Error(error);
-    }
-  });
-
-  logger.email(`Creating email transport for persona '${persona.id}'`, {
-    host: persona.email_imap,
-    port: parseInt(persona.email_port) || 993,
-    user: persona.email_user
-  });
-
-  const transporter = nodemailer.createTransport({
-    host: persona.email_imap,
-    port: parseInt(persona.email_port) || 993, // Default IMAPS port
-    secure: true,
-    auth: {
-      user: persona.email_user,
-      pass: persona.email_password,
-    },
-  });
-
-  try {
-    logger.email(`Sending email from '${persona.id}'`, {
-      to: options.to,
-      subject: options.subject,
-      hasAttachments: !!options.attachments
-    });
-    // Not in dry_run mode, send the email
-    if( mode !== 'dry_run') {
-      const info = await transporter.sendMail(options);
-      // Analyse the response
-      if (info.accepted.length > 0) { 
-        logger.email(`Email sent successfully from '${persona.id}'`, {
-          messageId: info.messageId,
-          response: info.response
-        });
-      } else {
-        logger.error(`Failed to send email from '${persona.id}'`, {
-          response: info.response
-        });
-      }
-    }
-  } catch (error) {
-    logger.error(`Failed to send email from '${persona.id}'`, error);
-    throw error;
-  }
-}
-
-
 async function processEmail(message) {
   const mode = process.env.MAILAI_mode || 'development';
   const persona = message.persona;
   try {
     // Log the email being processed
     if (mode === 'dry_run') {
-      logger.dryRun(`Processing email from: ${message.header.from}`);
-      logger.dryRun(`Subject: ${message.header.subject}`);
+      logger.dryRun(`Processing email from: ${message.parsed.from}`);
+      logger.dryRun(`Subject: ${message.parsed.subject}`);
     } else if (mode === 'testing') {
       logger.test(`Processing email from: ${message.header.from}`);
     } else {
@@ -987,7 +824,8 @@ function createImapConnection(persona) {
     tlsOptions: { rejectUnauthorized: false },
     authTimeout: 3000,
     connTimeout: 10000,
-    debug: config.mode !== "production" ? console.log : null
+    debug: config.mode !== "production" 
+      ? (text) => logger.debug(`IMAP Debug [${persona.id}]: ${text}`) : null
   });
 }
 
@@ -1002,7 +840,6 @@ function openInbox(imap, cb) {
 
 // Add this before the pluginManager initialization
 // After the initial requires, modify the emailStats initialization
-// Fix the emailStats initialization to properly handle the sender history
 const emailStats = {
   dailyCount: parseInt(process.env.MAILAI_DAILY_COUNT || '0'),
   lastReset: parseInt(process.env.MAILAI_LAST_RESET || new Date().setHours(0, 0, 0, 0)),
@@ -1029,7 +866,7 @@ const emailStats = {
 };
 
 
-function shouldProcessEmail(emailData) {
+function shouldProcessEmail(message) {
   const isDebug = process.env.MAILAI_DEBUG_MODE === 'true';
   
   // Reset daily counter if it's a new day
@@ -1042,37 +879,38 @@ function shouldProcessEmail(emailData) {
   }
   
   // Check daily limit
-  if (emailStats.dailyCount >= RATE_LIMITS.MAX_DAILY_EMAILS) {
-    log('warning', `Daily email limit (${RATE_LIMITS.MAX_DAILY_EMAILS}) reached. Skipping until tomorrow.`);
+  if (emailStats.dailyCount >= config.MAX_DAILY_EMAILS) {
+    log('warning', `Daily email limit (${config.MAX_DAILY_EMAILS}) reached. Skipping until tomorrow.`);
     return false;
   }
 
   // Check sender cooldown
-  const senderEmail = emailData.from.address || emailData.from;
+  const senderEmail = message.from.address || message.from;
   const lastResponse = emailStats.senderHistory.get(senderEmail);
   const now = Date.now();
   
-  if (lastResponse && (now - lastResponse) < RATE_LIMITS.COOLDOWN_PERIOD) {
-    log('info', `Skipping email "${emailData.subject}" - Cooldown period active for sender ${senderEmail}`);
+  if (lastResponse && (now - lastResponse) < config.COOLDOWN_PERIOD) {
+    log('info', `Skipping email "${message.subject}" - Cooldown period active for sender ${senderEmail}`);
     return false;
   }
 
   // Check if any of our managed emails are in the CC field
-  if (emailData.cc) {
-    const ccEmails = Array.isArray(emailData.cc) ? emailData.cc : [emailData.cc];
+  // ToDo: add some mark to sent emails to detect auto-response loops
+  if (message.parsed.cc) {
+    const ccEmails = Array.isArray(message.cc) ? message.cc : [message.cc];
     const isAnyEmailInCC = emailUsers.some(email => 
       ccEmails.some(cc => cc.includes(email.trim()))
     );
 
     if (isAnyEmailInCC) {
-      log('info', `Skipping email "${emailData.subject}" because one of our managed emails is in CC - This prevents auto-response loops`);
+      log('info', `Skipping email "${message.subject}" because one of our managed emails is in CC - This prevents auto-response loops`);
       return false;
     }
   }
 
   // In debug mode, log but still process if explicitly enabled
   if (isDebug) {
-    log('info', `Processing email "${emailData.subject}" from ${senderEmail} - Debug mode is active`);
+    log('info', `Processing email "${message.subject}" from ${senderEmail} - Debug mode is active`);
   }
   
   return true;
@@ -1510,26 +1348,7 @@ async function processMessage(aiProvider, message, config) {
  *  Node-RED integration
  */
 
-const RED = require('node-red');
-
-// Create a settings object for Node-RED
-const settings = {
-  httpAdminRoot: '/red', // Admin UI path
-  httpNodeRoot: '/api', // API path for HTTP nodes
-  userDir: config.NODE_RED_USER_DIR, // Directory for Node-RED user data
-  functionGlobalContext: {}, // Global context for functions
-};
-
-// Initialize Node-RED
-const server = RED.init(app, settings);
-
-// Serve the Node-RED editor
-app.use( settings.httpAdminRoot, RED.httpAdmin );
-
-// Serve the Node-RED API
-app.use( settings.httpNodeRoot, RED.httpNode );
-
-
+import RED from 'node-red';
 
 /**
  * Function to trigger an input event in Node-RED
@@ -1545,7 +1364,7 @@ async function triggerNodeRedInputEvent(payload, nodeId) {
   }
 }
 
-// Example usage
+
 const helloPayload = {
   message: 'Hello from MailAI!',
   timestamp: new Date().toISOString(),
@@ -1558,17 +1377,37 @@ const byePayload = {
 let nodeREDServer;
 
 function startNodeRED() {
+
+  log('info', 'Starting Node-RED server...');
+
+  // Create a settings object for Node-RED
+  const settings = {
+    httpAdminRoot: '/red', // Admin UI path
+    httpNodeRoot: '/api', // API path for HTTP nodes
+    userDir: config.NODE_RED_USER_DIR, // Directory for Node-RED user data
+    functionGlobalContext: {}, // Global context for functions
+  };
+
+  // Initialize Node-RED
+  const server = RED.init(app, settings);
+
+  // Serve the Node-RED editor
+  app.use( settings.httpAdminRoot, RED.httpAdmin );
+
+  // Serve the Node-RED API
+  app.use( settings.httpNodeRoot, RED.httpNode );
+
   nodeREDServer = app.listen(1880, (err) => {
     if (err) {
       log('error', `Failed to start Node-RED server: ${err.message}`);
       return;
     }
     log('info', 'Node-RED server started on http://localhost:1880');
+    setTimeout(() => {
+      triggerNodeRedInputEvent(helloPayload, 'MailAI');
+    }, 5000);
   });
 
-  setTimeout(() => {
-    triggerNodeRedInputEvent(helloPayload, 'MailAI');
-  }, 5000);
 }
 
 function stopNodeRED() {
