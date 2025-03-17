@@ -1,0 +1,446 @@
+Network Working Group                                        Anthropic
+Request for Comments: Draft                                  March 2025
+Category: Informational
+
+
+              StructEnv Format Specification - Draft v0.1
+
+Status of This Memo
+
+   This memo provides information for the Internet community.  It does
+   not specify an Internet standard of any kind.  Distribution of this
+   memo is unlimited.
+
+Abstract
+
+   This document defines the StructEnv format, a configuration file
+   format that extends the traditional dotenv format to support nested
+   structures while maintaining compatibility with JSON, TOML, and YAML
+   semantics. StructEnv aims to provide a human-readable and editable
+   configuration format that can represent complex data structures
+   without sacrificing simplicity for common cases.
+
+Table of Contents
+
+   1. Introduction ....................................................2
+   2. Syntax ..........................................................2
+      2.1. Basic Structure ............................................2
+      2.2. Value Types ................................................2
+      2.3. Type Qualifiers ............................................3
+      2.4. Comments ...................................................3
+   3. Nested Structures ...............................................3
+      3.1. Object Nesting .............................................3
+      3.2. Special Character Handling in Keys .........................4
+   4. Arrays ..........................................................5
+      4.1. Simple Arrays ..............................................5
+      4.2. Empty Arrays ...............................................5
+      4.3. Single-Element Arrays ......................................5
+      4.4. Arrays of Objects ..........................................5
+   5. String Values ...................................................6
+      5.1. Simple Strings .............................................6
+      5.2. Multi-line Strings .........................................6
+      5.3. Escape Sequences ...........................................6
+   6. Metadata and Documentation ......................................7
+      6.1. File-Level Metadata ........................................7
+      6.2. Object-Specific Metadata ...................................7
+   7. Conversion Algorithms ...........................................7
+      7.1. JSON to StructEnv ..........................................7
+      7.2. StructEnv to JSON ..........................................8
+   8. Examples ........................................................8
+      8.1. Basic Example ..............................................8
+      8.2. Complex Example ............................................9
+   9. Implementation Considerations ..................................10
+      9.1. Parsing Strategy ..........................................10
+      9.2. Type Inference ............................................11
+      9.3. Error Handling ............................................11
+   10. Future Considerations .........................................11
+       10.1. Schema Support ..........................................11
+       10.2. Include Directives ......................................11
+       10.3. Circular Reference Handling .............................11
+   11. Appendix ......................................................11
+       11.1. ABNF Grammar ............................................11
+       11.2. Recommended File Extensions .............................11
+       11.3. MIME Type ...............................................11
+   12. Security Considerations .......................................12
+   13. References ....................................................12
+   14. Author's Address ..............................................12
+
+1. Introduction
+
+   StructEnv is a configuration file format that extends the traditional
+   dotenv format to support nested structures while maintaining
+   compatibility with JSON, TOML, and YAML semantics. It aims to provide
+   a human-readable and editable configuration format that can represent
+   complex data structures without sacrificing simplicity for common
+   cases.
+
+   This specification defines the syntax, semantics, and conversion rules
+   for the StructEnv format.
+
+2. Syntax
+
+2.1. Basic Structure
+
+   StructEnv files consist of key-value pairs separated by an equals sign
+   ('='):
+
+   key=value
+
+   Each key-value pair should be on a separate line. Keys are case-
+   sensitive.
+
+2.2. Value Types
+
+   StructEnv automatically detects the following types based on value
+   patterns:
+
+   - Strings: Default type for values without special patterns
+     (e.g., name=value)
+   - Integers: Numbers without decimal points (e.g., count=42)
+   - Floats: Numbers with decimal points (e.g., price=99.99)
+   - Booleans: Values exactly matching 'true' or 'false' (case-sensitive)
+   - Null: Value exactly matching 'null' (case-sensitive)
+   - Empty Arrays: Value exactly matching '[]'
+   - Empty Objects: Value exactly matching '{}'
+
+2.3. Type Qualifiers
+
+   For ambiguous cases, type qualifiers can be appended to keys:
+
+   - _s for string (e.g., value_s=42 interprets "42" as a string)
+   - _i for integer (e.g., value_i=042 interprets "042" as integer 42)
+   - _f for float (e.g., value_f=123 interprets "123" as float 123.0)
+   - _b for boolean (e.g., value_b=yes interprets "yes" as boolean true)
+   - _a for array (forces interpretation as array even with one element)
+   - _o for object (forces interpretation as object)
+   - _t for date/time (ISO 8601 format)
+
+2.4. Comments
+
+   Comments start with a hash symbol ('#') and extend to the end of the
+   line:
+
+   # This is a configuration file
+   app_name=MyApp  # Name of the application
+
+3. Nested Structures
+
+3.1. Object Nesting
+
+   StructEnv uses underscores to denote nested object hierarchies:
+
+   database_host=localhost
+   database_port=5432
+   database_credentials_username=admin
+   database_credentials_password=secret
+
+   Converts to JSON:
+   {
+     "database": {
+       "host": "localhost",
+       "port": 5432,
+       "credentials": {
+         "username": "admin",
+         "password": "secret"
+       }
+     }
+   }
+
+3.2. Special Character Handling in Keys
+
+   StructEnv uses a consistent escape system for special characters in
+   keys:
+
+   - Double underscore ('__') represents a literal underscore
+   - _o_ represents hyphen ('-')
+   - _D_ represents dollar sign ('$')
+   - _c_ represents colon (':')
+   - _p_ represents period ('.')
+   - _q_ represents question mark ('?')
+   - _e_ represents equals sign ('=')
+   - _s_ represents space (' ')
+   - _a_ represents at sign ('@')
+
+   Examples:
+   api__key=1234567890     # Represents "api_key"
+   api_o_domain=example.com  # Represents "api-domain"
+   user_a_example.com=admin  # Represents "user@example.com"
+
+4. Arrays
+
+4.1. Simple Arrays
+
+   Arrays are represented using repeated keys:
+
+   colors=red
+   colors=green
+   colors=blue
+
+   Converts to JSON:
+   {
+     "colors": ["red", "green", "blue"]
+   }
+
+4.2. Empty Arrays
+
+   Empty arrays must be declared explicitly:
+
+   empty_list=[]
+
+4.3. Single-Element Arrays
+
+   Single-element arrays require either _a type qualifier or an empty
+   array declaration first:
+
+   single_item=[]
+   single_item=only_value
+
+4.4. Arrays of Objects
+
+   users=[]
+   users_name=Alice
+   users_age=30
+   users=[]
+   users_name=Bob
+   users_age=25
+
+   Converts to JSON:
+   {
+     "users": [
+       {
+         "name": "Alice",
+         "age": 30
+       },
+       {
+         "name": "Bob",
+         "age": 25
+       }
+     ]
+   }
+
+5. String Values
+
+5.1. Simple Strings
+
+   message=Hello World
+
+5.2. Multi-line Strings
+
+   Multi-line strings use quoted format with repeated keys:
+
+   content="This is the first line
+   content="of a multi-line text
+   content="that spans three lines.
+
+   Converts to:
+   {
+     "content": "This is the first line\nof a multi-line text\nthat spans three lines."
+   }
+
+5.3. Escape Sequences
+
+   StructEnv supports C-style escape sequences:
+
+   - \n - newline
+   - \t - tab
+   - \\ - backslash
+   - \" - double quote
+   - \' - single quote
+
+   Example:
+   message="Hello\nWorld
+   path="C:\\Program Files\\App
+
+6. Metadata and Documentation
+
+6.1. File-Level Metadata
+
+   File-level metadata uses underscore-prefixed keys:
+
+   _description=Configuration for production environment
+   _version=1.0.0
+   database_host=db.example.com
+
+6.2. Object-Specific Metadata
+
+   Object-specific metadata uses an underscore key within the object's
+   namespace:
+
+   database_host=db.example.com
+   database__description=Production database configuration
+
+7. Conversion Algorithms
+
+7.1. JSON to StructEnv
+
+   1. Start with an empty result set.
+   2. For each key-value pair in the JSON:
+      a. If the value is a primitive (string, number, boolean, null):
+         - Format the key path using underscores for nesting
+         - Format the value according to its type
+         - Add the key-value pair to the result
+      b. If the value is an array:
+         - If the array is empty, add `key=[]` to the result
+         - Otherwise, for each item in the array:
+           - If the item is a primitive, add `key=item` to the result
+           - If the item is an object, add `key={}` followed by each
+             property formatted as `key__property=value`
+      c. If the value is an object:
+         - If the object is empty, add `key={}` to the result
+         - Otherwise, recursively process each property with the key
+           prefix
+   3. Sort all entries alphabetically by key.
+
+7.2. StructEnv to JSON
+
+   1. Parse each line into key-value pairs.
+   2. Group keys by their prefixes (separated by underscores).
+   3. For each unique key or prefix:
+      a. If multiple entries with the same key exist, create an array.
+      b. If a key contains underscores, create nested objects.
+      c. Apply type conversion based on value patterns or type
+         qualifiers.
+   4. Handle special cases:
+      a. If a key is followed by `=[]`, initialize an empty array.
+      b. If a key is followed by `={}`, initialize an empty object.
+      c. Process quoted multi-line strings by joining values with
+         newlines.
+   5. Resolve any special character encodings in keys.
+
+8. Examples
+
+8.1. Basic Example
+
+   # App configuration
+   app_name=MyApp
+   app_version=1.0.0
+   app_debug=true
+   app_server_port=8080
+   app_database_host=localhost
+   app_database_username=admin
+   app_database_password=secret
+
+8.2. Complex Example
+
+   # Company structure
+   company_name=Acme Corp
+   company_founded=1985
+   company_active=true
+
+   # Departments
+   departments=Engineering
+   departments=Marketing
+   departments=Sales
+
+   # Employees
+   employees={}
+   employees_id=1001
+   employees_name=John Doe
+   employees_position=Developer
+   employees_skills=JavaScript
+   employees_skills=Python
+   employees_skills=SQL
+
+   employees={}
+   employees_id=1002
+   employees_name=Jane Smith
+   employees_position=Designer
+   employees_skills=UI/UX
+   employees_skills=Photoshop
+
+   # Office locations
+   offices={}
+   offices_city=New York
+   offices_address_street=123 Broadway
+   offices_address_zip=10001
+   offices_employees_count=50
+
+   offices={}
+   offices_city=San Francisco
+   offices_address_street=456 Market St
+   offices_address_zip=94103
+   offices_employees_count=30
+
+9. Implementation Considerations
+
+9.1. Parsing Strategy
+
+   Implementations should:
+   1. Parse the file line by line
+   2. Build an intermediate representation of the key-value pairs
+   3. Process the intermediate representation to build the final
+      structured data
+
+9.2. Type Inference
+
+   Type inference should be applied in the following order:
+   1. Check for type qualifiers in the key
+   2. Apply pattern-based type detection on the value
+   3. Default to string type if no other type can be inferred
+
+9.3. Error Handling
+
+   Implementations should report specific errors for:
+   1. Duplicate keys (that would not form an array)
+   2. Invalid escape sequences
+   3. Malformed keys or values
+   4. Type conflicts
+
+10. Future Considerations
+
+10.1. Schema Support
+
+   Future versions may include a schema definition format to validate
+   StructEnv files.
+
+10.2. Include Directives
+
+   Support for including other StructEnv files may be added in future
+   versions.
+
+10.3. Circular Reference Handling
+
+   A formal method for handling circular references may be defined in
+   future versions.
+
+11. Appendix
+
+11.1. ABNF Grammar
+
+   (To be specified in future versions)
+
+11.2. Recommended File Extensions
+
+   The recommended file extension for StructEnv files is '.env'.
+
+11.3. MIME Type
+
+   The recommended MIME type for StructEnv files is
+   'application/x-structenv'.
+
+12. Security Considerations
+
+   Implementers should be aware of the following security considerations:
+
+   - Parsers should enforce reasonable limits on the depth of nested
+     structures to prevent stack overflow attacks.
+   - Care should be taken when processing escape sequences to prevent
+     injection attacks.
+   - Implementations should consider the security implications of
+     automatically executing include directives if supported in future
+     versions.
+
+13. References
+
+   [1] The "dotenv" file format, https://github.com/motdotla/dotenv
+   [2] JSON (JavaScript Object Notation), RFC 8259
+   [3] TOML (Tom's Obvious, Minimal Language), https://toml.io/
+   [4] YAML (YAML Ain't Markup Language), https://yaml.org/
+
+14. Author's Address
+
+   Jean Hugues NoelRobert
+   San Francisco, CA
+   USA
+
+   Email: specs@anthropic.com

@@ -41,7 +41,8 @@
     "node-red": "^4.0.9",
     "nodemailer": "^6.7.2",
     "openai": "^4.28.0",
-    "replicate": "^1.0.1"
+    "replicate": "^1.0.1",
+    "toml": "^3.0.0"
   },
   "repository": {
     "type": "git",
